@@ -1,5 +1,6 @@
 package com.example.songfinder
 
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.view.Menu
@@ -37,7 +38,7 @@ class MainActivity : AppCompatActivity() {
         username = intent.getStringExtra("USERNAME") ?: "Invitado"
 
         val retrofit = Retrofit.Builder()
-            .baseUrl("http://192.168.0.103:8080")
+            .baseUrl("http://192.168.1.13:8080")
             .addConverterFactory(GsonConverterFactory.create())
             .build()
         apiService = retrofit.create(ApoloApiService::class.java)
@@ -87,6 +88,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    fun onHistoryClick(view: View) {
+        val intent = Intent(this, HistoryActivity::class.java)
+        startActivity(intent)
+    }
+
     private fun fetchAllSongs() {
         lifecycleScope.launch {
             try {
@@ -114,7 +120,32 @@ class MainActivity : AppCompatActivity() {
 
     private fun onSongSelected(song: Song) {
         Toast.makeText(this, "Explorando: ${song.id.songName}", Toast.LENGTH_SHORT).show()
+        saveToHistory(song)
         fetchSimilarSongs(song)
+    }
+
+    private fun saveToHistory(song: Song) {
+        // Local save
+        HistoryManager.addSong(song)
+
+        // API save
+        lifecycleScope.launch {
+            try {
+                val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.getDefault())
+                val historyEntry = ListeningHistory(
+                    user = User(username),
+                    song = song,
+                    playedAt = dateFormat.format(java.util.Date()),
+                    durationPlayedMs = 0L
+                )
+                val response = apiService.createHistory(historyEntry)
+                if (response.isSuccessful) {
+                    Log.d("API", "Historial guardado en el servidor")
+                }
+            } catch (e: Exception) {
+                Log.e("API", "Error al guardar historial: ${e.message}")
+            }
+        }
     }
 
     private fun fetchSimilarSongs(song: Song) {
