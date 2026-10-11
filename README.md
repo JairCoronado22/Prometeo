@@ -1,4 +1,4 @@
-# SongFinder (React Native Client)
+# Prometeo (React Native Client)
 
 Aplicación móvil cliente para la exploración, búsqueda y gestión de canciones, desarrollada con React Native y TypeScript. Se conecta al servicio backend REST para la gestión de usuarios, catálogo musical, recomendaciones por similitud, geolocalización de tendencias e historial de reproducción.
 
@@ -15,7 +15,7 @@ Aplicación móvil cliente para la exploración, búsqueda y gestión de cancion
 ## Estructura del Proyecto
 
 ```
-react-native-songfinder/
+prometeo/
 ├── App.tsx                     # Punto de entrada de la aplicación
 ├── package.json                # Gestión de dependencias
 ├── tsconfig.json               # Configuración de TypeScript

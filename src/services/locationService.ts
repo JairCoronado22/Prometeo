@@ -16,7 +16,7 @@ export const locationService = {
         PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
         {
           title: 'Permiso de Ubicación',
-          message: 'SongFinder utiliza tu ubicación para mostrar tendencias musicales de tu zona.',
+          message: 'Prometeo utiliza tu ubicación para mostrar tendencias musicales de tu zona.',
           buttonPositive: 'Aceptar',
           buttonNegative: 'Cancelar',
         }

@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Song } from '../types';
 
-const HISTORY_KEY = '@songfinder_listening_history';
+const HISTORY_KEY = '@prometeo_listening_history';
 
 export const historyStorage = {
   async getHistory(): Promise<Song[]> {
