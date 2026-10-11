@@ -59,22 +59,22 @@ La dirección base del servidor se configura en `src/api/apoloApi.ts` (`BASE_URL
 ### Prerrequisitos
 
 - Node.js (v18+)
-- React Native CLI
+- JDK 17 (Java 17)
 - Android Studio y SDK de Android configurado
 
-### Instrucciones de Ejecución
+### Instrucciones de Ejecución (PowerShell)
 
 1. Instalar dependencias:
    ```bash
    npm install
    ```
 
-2. Iniciar Metro Bundler:
-   ```bash
-   npx react-native start
-   ```
+2. Configurar variables de entorno e iniciar emulador Android desde Android Studio (*Device Manager*).
 
-3. Ejecutar en dispositivo/emulador Android:
-   ```bash
+3. Ejecutar en dispositivo/emulador Android con Java 17:
+   ```powershell
+   $env:JAVA_HOME="C:\Users\artik\.jdks\jbr-17.0.14"
+   $env:ANDROID_HOME="C:\Users\artik\AppData\Local\Android\Sdk"
+   $env:PATH="C:\Users\artik\AppData\Local\Android\Sdk\platform-tools;" + $env:PATH
    npx react-native run-android
    ```

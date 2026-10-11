@@ -1,3 +1,10 @@
+# Android local configuration
+android/local.properties
+android/.gradle/
+android/app/build/
+android/build/
+.gradle/
+
 # Node dependencies
 node_modules/
 
