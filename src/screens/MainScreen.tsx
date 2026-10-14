@@ -14,7 +14,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList, Song, SimilarSongDTO, ListeningHistory } from '../types';
 import { apoloApi } from '../api/apoloApi';
 import { historyStorage } from '../services/historyStorage';
-import { SongItem } from '../components/SongItem';
+import { SongItem, isValidSong, isValidSimilarSong } from '../components/SongItem';
 import { LocationBanner } from '../components/LocationBanner';
 import { useLocation } from '../hooks/useLocation';
 
@@ -44,8 +44,9 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
     try {
       const data = await apoloApi.getAllSongs();
       if (data && data.length > 0) {
-        setAllSongs(data);
-        setFilteredSongs(data);
+        const validSongs = data.filter(isValidSong);
+        setAllSongs(validSongs);
+        setFilteredSongs(validSongs);
       } else {
         useFallbackSongs();
       }
@@ -157,7 +158,8 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
     try {
       const similar = await apoloApi.getSimilarSongs(song.id.songArtist, song.id.songName);
       if (similar && similar.length > 0) {
-        setSimilarSongs(similar);
+        const validSimilar = similar.filter(isValidSimilarSong);
+        setSimilarSongs(validSimilar);
       } else {
         useFallbackSimilarSongs(song);
       }

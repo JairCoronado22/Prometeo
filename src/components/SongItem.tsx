@@ -9,9 +9,39 @@ interface SongItemProps {
   onPress?: () => void;
 }
 
+export function isValidSong(song: Song): boolean {
+  if (!song || !song.id || !song.id.songName || !song.id.songArtist) {
+    return false;
+  }
+
+  const name = song.id.songName.trim();
+  const artist = song.id.songArtist.trim();
+
+  if (/(?:ï¿½|\uFFFD)/.test(name) || /(?:ï¿½|\uFFFD)/.test(artist)) {
+    return false;
+  }
+
+  return /[a-zA-Z0-9áéíóúÁÉÍÓÚñÑ]/.test(name) && /[a-zA-Z0-9áéíóúÁÉÍÓÚñÑ]/.test(artist);
+}
+
+export function isValidSimilarSong(similar: SimilarSongDTO): boolean {
+  if (!similar || !similar.songName || !similar.artist) {
+    return false;
+  }
+
+  const name = similar.songName.trim();
+  const artist = similar.artist.trim();
+
+  if (/(?:ï¿½|\uFFFD)/.test(name) || /(?:ï¿½|\uFFFD)/.test(artist)) {
+    return false;
+  }
+
+  return /[a-zA-Z0-9áéíóúÁÉÍÓÚñÑ]/.test(name) && /[a-zA-Z0-9áéíóúÁÉÍÓÚñÑ]/.test(artist);
+}
+
 export const SongItem: React.FC<SongItemProps> = ({ song, similarSong, isSelected, onPress }) => {
-  const songName = song?.id.songName || similarSong?.songName || 'Sin Título';
-  const artistName = song?.id.songArtist || similarSong?.artist || 'Artista Desconocido';
+  const songName = song?.id.songName || similarSong?.songName || '';
+  const artistName = song?.id.songArtist || similarSong?.artist || '';
   const similarityText = similarSong ? ` • ${Math.round(similarSong.similarity * 100)}% coincidencia` : '';
 
   return (
