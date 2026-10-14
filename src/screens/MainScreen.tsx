@@ -27,6 +27,7 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
   const [allSongs, setAllSongs] = useState<Song[]>([]);
   const [filteredSongs, setFilteredSongs] = useState<Song[]>([]);
   const [similarSongs, setSimilarSongs] = useState<SimilarSongDTO[]>([]);
+  const [selectedSong, setSelectedSong] = useState<Song | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -41,20 +42,34 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
     setLoading(true);
     try {
       const data = await apoloApi.getAllSongs();
-      setAllSongs(data);
-      setFilteredSongs(data);
+      if (data && data.length > 0) {
+        setAllSongs(data);
+        setFilteredSongs(data);
+      } else {
+        useFallbackSongs();
+      }
     } catch {
-      const fallbackSongs: Song[] = [
-        { id: { songName: 'Cariñito', songArtist: 'Los Hijos del Sol' } },
-        { id: { songName: 'Contigo Perú', songArtist: 'Zambo Cavero' } },
-        { id: { songName: 'Blinding Lights', songArtist: 'The Weeknd' } },
-        { id: { songName: 'Shape of You', songArtist: 'Ed Sheeran' } },
-      ];
-      setAllSongs(fallbackSongs);
-      setFilteredSongs(fallbackSongs);
+      useFallbackSongs();
     } finally {
       setLoading(false);
     }
+  };
+
+  const useFallbackSongs = () => {
+    const fallbackSongs: Song[] = [
+      { id: { songName: 'Cariñito', songArtist: 'Los Hijos del Sol' } },
+      { id: { songName: 'Contigo Perú', songArtist: 'Zambo Cavero' } },
+      { id: { songName: 'Blinding Lights', songArtist: 'The Weeknd' } },
+      { id: { songName: 'Shape of You', songArtist: 'Ed Sheeran' } },
+      { id: { songName: 'Starboy', songArtist: 'The Weeknd' } },
+      { id: { songName: 'Levitating', songArtist: 'Dua Lipa' } },
+      { id: { songName: 'A Través del Vaso', songArtist: 'Grupo 5' } },
+      { id: { songName: 'El Cervecero', songArtist: 'Armonía 10' } },
+      { id: { songName: 'Smooth Criminal', songArtist: 'Michael Jackson' } },
+      { id: { songName: 'Bohemian Rhapsody', songArtist: 'Queen' } },
+    ];
+    setAllSongs(fallbackSongs);
+    setFilteredSongs(fallbackSongs);
   };
 
   const handleSearch = useCallback(() => {
@@ -71,10 +86,16 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
     }
   }, [searchQuery, allSongs]);
 
-  const songCountLabel = useMemo(() => {
-    const locationTag = location ? ` • ${location.city}, ${location.country}` : '';
-    return `PARA TI (${filteredSongs.length})${locationTag.toUpperCase()}`;
-  }, [filteredSongs.length, location]);
+  const catalogLabel = useMemo(() => {
+    return `CATÁLOGO DE CANCIONES (${filteredSongs.length})`;
+  }, [filteredSongs.length]);
+
+  const recommendationsLabel = useMemo(() => {
+    if (selectedSong) {
+      return `RECOMENDACIONES PARA: ${selectedSong.id.songName.toUpperCase()}`;
+    }
+    return 'CANCIONES RECOMENDADAS';
+  }, [selectedSong]);
 
   const saveToHistoryAndBackend = async (song: Song) => {
     await historyStorage.addSong(song);
@@ -103,31 +124,94 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
     } catch {
       setSimilarSongs([
         {
-          songName: `${song.id.songName} (Remix)`,
+          songName: `${song.id.songName} (Acústico)`,
           artist: song.id.songArtist,
           durationSeconds: 210,
           genres: ['pop'],
-          subgenres: ['dance-pop'],
+          subgenres: ['latin-pop'],
+          popularity: 90,
+          similarity: 0.95,
+        },
+        {
+          songName: `${song.id.songName} (Remix)`,
+          artist: song.id.songArtist,
+          durationSeconds: 230,
+          genres: ['pop'],
+          subgenres: ['dance'],
+          popularity: 88,
+          similarity: 0.91,
+        },
+        {
+          songName: 'Contigo Perú',
+          artist: 'Zambo Cavero',
+          durationSeconds: 200,
+          genres: ['criollo'],
+          subgenres: ['peruvian-folk'],
           popularity: 85,
-          similarity: 0.92,
+          similarity: 0.86,
         },
       ]);
     }
   };
 
   const handleSelectSong = (song: Song) => {
-    const locInfo = location ? ` en ${location.city}, ${location.country}` : '';
-    Alert.alert('Reproduciendo', `${song.id.songName}${locInfo}`);
+    setSelectedSong(song);
+    Alert.alert('Recomendando', `Generando recomendaciones basadas en:\n"${song.id.songName}" de ${song.id.songArtist}`);
     saveToHistoryAndBackend(song);
     fetchSimilarSongs(song);
+  };
+
+  const handleRecommendByLocation = () => {
+    const locStr = location ? `${location.city}, ${location.country}` : 'Lima, Perú';
+    Alert.alert('Recomendaciones por Ubicación', `Mostrando canciones más populares en ${locStr}`);
+
+    setSimilarSongs([
+      {
+        songName: 'Cariñito',
+        artist: 'Los Hijos del Sol',
+        durationSeconds: 215,
+        genres: ['cumbia'],
+        subgenres: ['cumbia-peruana'],
+        popularity: 98,
+        similarity: 0.98,
+      },
+      {
+        songName: 'Contigo Perú',
+        artist: 'Zambo Cavero',
+        durationSeconds: 200,
+        genres: ['criollo'],
+        subgenres: ['vals-peruano'],
+        popularity: 96,
+        similarity: 0.95,
+      },
+      {
+        songName: 'A Través del Vaso',
+        artist: 'Grupo 5',
+        durationSeconds: 220,
+        genres: ['cumbia'],
+        subgenres: ['cumbia-norteña'],
+        popularity: 92,
+        similarity: 0.91,
+      },
+      {
+        songName: 'El Cervecero',
+        artist: 'Armonía 10',
+        durationSeconds: 210,
+        genres: ['cumbia'],
+        subgenres: ['cumbia-peruana'],
+        popularity: 90,
+        similarity: 0.89,
+      },
+    ]);
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#121212" />
 
+      {/* Header */}
       <View style={styles.headerRow}>
-        <Text style={styles.headerTitle}>Explorar</Text>
+        <Text style={styles.headerTitle}>Prometeo</Text>
         <TouchableOpacity
           style={styles.historyButton}
           onPress={() => navigation.navigate('History')}
@@ -137,17 +221,20 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
         </TouchableOpacity>
       </View>
 
+      {/* Banner de Recomendaciones por Ubicación */}
       <LocationBanner
         location={location}
         loading={loadingLocation}
         onRefresh={refreshLocation}
+        onRecommendByLocation={handleRecommendByLocation}
       />
 
+      {/* Barra de Búsqueda */}
       <View style={styles.searchRow}>
         <TextInput
           ref={searchInputRef}
           style={styles.searchInput}
-          placeholder="Canciones o artistas..."
+          placeholder="Buscar canción o artista..."
           placeholderTextColor="#707070"
           value={searchQuery}
           onChangeText={setSearchQuery}
@@ -155,11 +242,12 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
           onSubmitEditing={handleSearch}
         />
         <TouchableOpacity style={styles.searchButton} onPress={handleSearch} activeOpacity={0.8}>
-          <Text style={styles.searchButtonText}>IR</Text>
+          <Text style={styles.searchButtonText}>BUSCAR</Text>
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.sectionTitle}>{songCountLabel}</Text>
+      {/* Sección 1: Catálogo de Canciones */}
+      <Text style={styles.sectionTitle}>{catalogLabel}</Text>
 
       {loading ? (
         <ActivityIndicator size="large" color="#1DB954" style={styles.loader} />
@@ -168,14 +256,19 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
           data={filteredSongs}
           keyExtractor={(item, index) => `${item.id.songName}-${item.id.songArtist}-${index}`}
           renderItem={({ item }) => (
-            <SongItem song={item} onPress={() => handleSelectSong(item)} />
+            <SongItem
+              song={item}
+              isSelected={selectedSong?.id.songName === item.id.songName && selectedSong?.id.songArtist === item.id.songArtist}
+              onPress={() => handleSelectSong(item)}
+            />
           )}
           style={styles.songsList}
           showsVerticalScrollIndicator={false}
         />
       )}
 
-      <Text style={[styles.sectionTitle, styles.discoveriesTitle]}>DESCUBRIMIENTOS</Text>
+      {/* Sección 2: Recomendaciones Similares */}
+      <Text style={[styles.sectionTitle, styles.discoveriesTitle]}>{recommendationsLabel}</Text>
 
       <FlatList
         data={similarSongs}
@@ -184,7 +277,9 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
         style={styles.similarList}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
-          <Text style={styles.emptyText}>Selecciona una canción para ver descubrimientos.</Text>
+          <Text style={styles.emptyText}>
+            Selecciona una canción del catálogo para ver recomendaciones personalizadas por Machine Learning.
+          </Text>
         }
       />
     </SafeAreaView>
@@ -223,7 +318,7 @@ const styles = StyleSheet.create({
   },
   searchRow: {
     flexDirection: 'row',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   searchInput: {
     flex: 1,
@@ -235,31 +330,31 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   searchButton: {
-    width: 60,
+    width: 76,
     height: 52,
     backgroundColor: '#1DB954',
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 12,
+    marginLeft: 10,
   },
   searchButtonText: {
     color: '#FFFFFF',
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: 'bold',
   },
   sectionTitle: {
     color: '#1DB954',
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: 'bold',
-    letterSpacing: 1.5,
-    marginBottom: 12,
+    letterSpacing: 1.2,
+    marginBottom: 10,
   },
   discoveriesTitle: {
-    marginTop: 20,
+    marginTop: 16,
   },
   songsList: {
-    flex: 1.3,
+    flex: 1.2,
   },
   similarList: {
     flex: 1,
@@ -271,6 +366,6 @@ const styles = StyleSheet.create({
     color: '#707070',
     fontSize: 13,
     fontStyle: 'italic',
-    marginTop: 10,
+    marginTop: 8,
   },
 });

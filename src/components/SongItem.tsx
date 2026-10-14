@@ -5,16 +5,21 @@ import { Song, SimilarSongDTO } from '../types';
 interface SongItemProps {
   song?: Song;
   similarSong?: SimilarSongDTO;
+  isSelected?: boolean;
   onPress?: () => void;
 }
 
-export const SongItem: React.FC<SongItemProps> = ({ song, similarSong, onPress }) => {
+export const SongItem: React.FC<SongItemProps> = ({ song, similarSong, isSelected, onPress }) => {
   const songName = song?.id.songName || similarSong?.songName || 'Sin Título';
   const artistName = song?.id.songArtist || similarSong?.artist || 'Artista Desconocido';
   const similarityText = similarSong ? ` • ${Math.round(similarSong.similarity * 100)}% coincidencia` : '';
 
   return (
-    <TouchableOpacity style={styles.container} onPress={onPress} activeOpacity={0.7}>
+    <TouchableOpacity
+      style={[styles.container, isSelected && styles.selectedContainer]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
       <View style={styles.iconContainer}>
         <Text style={styles.musicNoteIcon}>♪</Text>
       </View>
@@ -26,8 +31,10 @@ export const SongItem: React.FC<SongItemProps> = ({ song, similarSong, onPress }
           {artistName}{similarityText}
         </Text>
       </View>
-      <View style={styles.playIconContainer}>
-        <Text style={styles.playIcon}>▶</Text>
+      <View style={styles.actionContainer}>
+        <Text style={[styles.actionIcon, isSelected && styles.selectedActionIcon]}>
+          {similarSong ? '★' : isSelected ? '✓' : '➜'}
+        </Text>
       </View>
     </TouchableOpacity>
   );
@@ -41,6 +48,12 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 8,
     marginBottom: 10,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  selectedContainer: {
+    backgroundColor: '#282828',
+    borderColor: '#1DB954',
   },
   iconContainer: {
     width: 48,
@@ -69,12 +82,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 4,
   },
-  playIconContainer: {
+  actionContainer: {
     paddingLeft: 8,
-    opacity: 0.7,
+    opacity: 0.8,
   },
-  playIcon: {
-    color: '#FFFFFF',
-    fontSize: 14,
+  actionIcon: {
+    color: '#909090',
+    fontSize: 16,
+  },
+  selectedActionIcon: {
+    color: '#1DB954',
+    fontWeight: 'bold',
   },
 });

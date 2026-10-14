@@ -6,18 +6,22 @@ interface LocationBannerProps {
   location: LocationData | null;
   loading: boolean;
   onRefresh: () => void;
+  onRecommendByLocation?: () => void;
 }
 
 export const LocationBanner: React.FC<LocationBannerProps> = ({
   location,
   loading,
   onRefresh,
+  onRecommendByLocation,
 }) => {
+  const locationString = location ? `${location.city}, ${location.country}` : 'Lima, Perú';
+
   return (
     <View style={styles.card}>
       <View style={styles.headerRow}>
         <View style={styles.badge}>
-          <Text style={styles.badgeText}>UBICACIÓN DEDUCIDA</Text>
+          <Text style={styles.badgeText}>UBICACIÓN GEOGRÁFICA</Text>
         </View>
         <TouchableOpacity onPress={onRefresh} style={styles.refreshButton} activeOpacity={0.7}>
           <Text style={styles.refreshText}>Actualizar GPS</Text>
@@ -27,13 +31,23 @@ export const LocationBanner: React.FC<LocationBannerProps> = ({
       {loading ? (
         <ActivityIndicator size="small" color="#1DB954" style={styles.loader} />
       ) : (
-        <View style={styles.content}>
-          <Text style={styles.locationTitle}>
-            {location ? `${location.city}, ${location.country}` : 'Lima, Perú'}
-          </Text>
-          <Text style={styles.locationSubtitle}>
-            Tendencias activas según tu localización geográfica
-          </Text>
+        <View style={styles.contentRow}>
+          <View style={styles.textContent}>
+            <Text style={styles.locationTitle}>Recomendar según ubicación</Text>
+            <Text style={styles.locationSubtitle}>
+              Tendencias populares en {locationString}
+            </Text>
+          </View>
+
+          {onRecommendByLocation && (
+            <TouchableOpacity
+              style={styles.actionBtn}
+              onPress={onRecommendByLocation}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.actionBtnText}>Ver Zona</Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
     </View>
@@ -78,17 +92,35 @@ const styles = StyleSheet.create({
   loader: {
     marginVertical: 8,
   },
-  content: {
-    marginTop: 2,
+  contentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  textContent: {
+    flex: 1,
+    paddingRight: 10,
   },
   locationTitle: {
     color: '#FFFFFF',
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: 'bold',
   },
   locationSubtitle: {
     color: '#909090',
     fontSize: 12,
     marginTop: 2,
+  },
+  actionBtn: {
+    backgroundColor: '#1DB954',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  actionBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
 });
