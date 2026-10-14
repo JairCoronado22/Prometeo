@@ -22,11 +22,6 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const { setUsername } = useAuth();
 
-  const navigateToMain = (user: string) => {
-    setUsername(user);
-    navigation.replace('Main', { username: user });
-  };
-
   const handleLogin = async () => {
     const trimmedUser = inputUsername.trim();
     if (!trimmedUser) {
@@ -35,31 +30,27 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
     }
 
     setLoading(true);
+
+    // Asignar sesión e ingresar inmediatamente a la pantalla principal
+    setUsername(trimmedUser);
+    navigation.replace('Main', { username: trimmedUser });
+
+    // Sincronizar con el backend en segundo plano sin bloquear el flujo del usuario
     try {
       const existingUser = await apoloApi.getUser(trimmedUser);
-      if (existingUser) {
-        navigateToMain(trimmedUser);
-      } else {
-        await createNewUser(trimmedUser);
+      if (!existingUser) {
+        await apoloApi.createUser({ username: trimmedUser });
       }
     } catch {
-      await createNewUser(trimmedUser);
+      // Sincronización transparente
     } finally {
       setLoading(false);
     }
   };
 
-  const createNewUser = async (userStr: string) => {
-    try {
-      await apoloApi.createUser({ username: userStr });
-      navigateToMain(userStr);
-    } catch {
-      navigateToMain(userStr);
-    }
-  };
-
   const handleGuest = () => {
-    navigateToMain('Invitado');
+    setUsername('Invitado');
+    navigation.replace('Main', { username: 'Invitado' });
   };
 
   return (
@@ -83,6 +74,8 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
           value={inputUsername}
           onChangeText={setInputUsername}
           autoCapitalize="none"
+          onSubmitEditing={handleLogin}
+          returnKeyType="go"
         />
 
         <TouchableOpacity

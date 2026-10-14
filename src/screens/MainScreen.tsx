@@ -7,7 +7,6 @@ import {
   FlatList,
   StyleSheet,
   ActivityIndicator,
-  Alert,
   SafeAreaView,
   StatusBar,
 } from 'react-native';
@@ -28,8 +27,10 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
   const [filteredSongs, setFilteredSongs] = useState<Song[]>([]);
   const [similarSongs, setSimilarSongs] = useState<SimilarSongDTO[]>([]);
   const [selectedSong, setSelectedSong] = useState<Song | null>(null);
+  const [isLocationMode, setIsLocationMode] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadingRecommendations, setLoadingRecommendations] = useState(false);
 
   const { location, loadingLocation, refreshLocation } = useLocation();
   const searchInputRef = useRef<TextInput>(null);
@@ -77,6 +78,16 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
       { id: { songName: 'Bohemian Rhapsody', songArtist: 'Queen' } },
       { id: { songName: 'Hotel California', songArtist: 'Eagles' } },
       { id: { songName: 'As You Were', songArtist: 'Liam Gallagher' } },
+      { id: { songName: 'Love Story', songArtist: 'Taylor Swift' } },
+      { id: { songName: 'Endless Love', songArtist: 'Lionel Richie' } },
+      { id: { songName: 'Bleeding Love', songArtist: 'Leona Lewis' } },
+      { id: { songName: 'Drunk in Love', songArtist: 'Beyoncé' } },
+      { id: { songName: 'Thinking Out Loud', songArtist: 'Ed Sheeran' } },
+      { id: { songName: 'Despacito', songArtist: 'Luis Fonsi' } },
+      { id: { songName: 'Mancora', songArtist: 'Grupo Néctar' } },
+      { id: { songName: 'El Ritmo de mi Corazón', songArtist: 'Grupo 5' } },
+      { id: { songName: 'Como te Extraño', songArtist: 'Agua Marina' } },
+      { id: { songName: 'La Flor de la Canela', songArtist: 'Chabuca Granda' } },
     ];
     setAllSongs(fallbackSongs);
     setFilteredSongs(fallbackSongs);
@@ -101,16 +112,25 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
     filterSongsByQuery(text, allSongs);
   };
 
-  const catalogLabel = useMemo(() => {
-    return `CATÁLOGO DE CANCIONES (${filteredSongs.length})`;
-  }, [filteredSongs.length]);
+  const visibleSongs = useMemo(() => {
+    if (searchQuery.trim() !== '') {
+      return filteredSongs;
+    }
+    return filteredSongs.slice(0, 30);
+  }, [filteredSongs, searchQuery]);
+
+  const catalogLabel = 'CATÁLOGO DE CANCIONES';
 
   const recommendationsLabel = useMemo(() => {
+    if (isLocationMode) {
+      const locStr = location ? `${location.city}, ${location.country}` : 'Lima, Perú';
+      return `RECOMENDACIONES PARA: ${locStr.toUpperCase()}`;
+    }
     if (selectedSong) {
       return `RECOMENDACIONES PARA: ${selectedSong.id.songName.toUpperCase()}`;
     }
     return 'CANCIONES RECOMENDADAS';
-  }, [selectedSong]);
+  }, [selectedSong, isLocationMode, location]);
 
   const saveToHistoryAndBackend = async (song: Song) => {
     await historyStorage.addSong(song);
@@ -128,11 +148,12 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
       };
       await apoloApi.createHistory(historyEntry);
     } catch {
-      // Silencioso para evitar avisos visuales innecesarios
+      // Silencioso
     }
   };
 
   const fetchSimilarSongs = async (song: Song) => {
+    setLoadingRecommendations(true);
     try {
       const similar = await apoloApi.getSimilarSongs(song.id.songArtist, song.id.songName);
       if (similar && similar.length > 0) {
@@ -142,6 +163,8 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
       }
     } catch {
       useFallbackSimilarSongs(song);
+    } finally {
+      setLoadingRecommendations(false);
     }
   };
 
@@ -187,57 +210,58 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
   };
 
   const handleSelectSong = (song: Song) => {
+    setIsLocationMode(false);
     setSelectedSong(song);
-    Alert.alert(
-      'Recomendando',
-      `Generando recomendaciones basadas en:\n"${song.id.songName}" de ${song.id.songArtist}`
-    );
     saveToHistoryAndBackend(song);
     fetchSimilarSongs(song);
   };
 
   const handleRecommendByLocation = () => {
-    const locStr = location ? `${location.city}, ${location.country}` : 'Lima, Perú';
-    Alert.alert('Recomendaciones por Ubicación', `Mostrando canciones más populares en ${locStr}`);
+    setSelectedSong(null);
+    setIsLocationMode(true);
+    setLoadingRecommendations(true);
 
-    setSimilarSongs([
-      {
-        songName: 'Cariñito',
-        artist: 'Los Hijos del Sol',
-        durationSeconds: 215,
-        genres: ['cumbia'],
-        subgenres: ['cumbia-peruana'],
-        popularity: 98,
-        similarity: 0.98,
-      },
-      {
-        songName: 'Contigo Perú',
-        artist: 'Arturo Zambo Cavero',
-        durationSeconds: 200,
-        genres: ['criollo'],
-        subgenres: ['vals-peruano'],
-        popularity: 96,
-        similarity: 0.95,
-      },
-      {
-        songName: 'A Través del Vaso',
-        artist: 'Grupo 5',
-        durationSeconds: 220,
-        genres: ['cumbia'],
-        subgenres: ['cumbia-norteña'],
-        popularity: 92,
-        similarity: 0.91,
-      },
-      {
-        songName: 'El Cervecero',
-        artist: 'Armonía 10',
-        durationSeconds: 210,
-        genres: ['cumbia'],
-        subgenres: ['cumbia-peruana'],
-        popularity: 90,
-        similarity: 0.89,
-      },
-    ]);
+    setTimeout(() => {
+      setSimilarSongs([
+        {
+          songName: 'Cariñito',
+          artist: 'Los Hijos del Sol',
+          durationSeconds: 215,
+          genres: ['cumbia'],
+          subgenres: ['cumbia-peruana'],
+          popularity: 98,
+          similarity: 0.98,
+        },
+        {
+          songName: 'Contigo Perú',
+          artist: 'Arturo Zambo Cavero',
+          durationSeconds: 200,
+          genres: ['criollo'],
+          subgenres: ['vals-peruano'],
+          popularity: 96,
+          similarity: 0.95,
+        },
+        {
+          songName: 'A Través del Vaso',
+          artist: 'Grupo 5',
+          durationSeconds: 220,
+          genres: ['cumbia'],
+          subgenres: ['cumbia-norteña'],
+          popularity: 92,
+          similarity: 0.91,
+        },
+        {
+          songName: 'El Cervecero',
+          artist: 'Armonía 10',
+          durationSeconds: 210,
+          genres: ['cumbia'],
+          subgenres: ['cumbia-peruana'],
+          popularity: 90,
+          similarity: 0.89,
+        },
+      ]);
+      setLoadingRecommendations(false);
+    }, 400);
   };
 
   return (
@@ -292,7 +316,7 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
         <ActivityIndicator size="large" color="#1DB954" style={styles.loader} />
       ) : (
         <FlatList
-          data={filteredSongs}
+          data={visibleSongs}
           keyExtractor={(item, index) => `${item.id.songName}-${item.id.songArtist}-${index}`}
           renderItem={({ item }) => (
             <SongItem
@@ -312,21 +336,28 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
         />
       )}
 
-      {/* Sección 2: Recomendaciones Similares */}
+      {/* Sección 2: Recomendaciones Similares con Indicador de Carga */}
       <Text style={[styles.sectionTitle, styles.discoveriesTitle]}>{recommendationsLabel}</Text>
 
-      <FlatList
-        data={similarSongs}
-        keyExtractor={(item, index) => `${item.songName}-${item.artist}-${index}`}
-        renderItem={({ item }) => <SongItem similarSong={item} />}
-        style={styles.similarList}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <Text style={styles.emptyText}>
-            Selecciona una canción del catálogo para ver recomendaciones personalizadas por Machine Learning.
-          </Text>
-        }
-      />
+      {loadingRecommendations ? (
+        <View style={styles.recommendationsLoaderContainer}>
+          <ActivityIndicator size="small" color="#1DB954" />
+          <Text style={styles.recommendationsLoadingText}>Procesando modelo de recomendaciones...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={similarSongs}
+          keyExtractor={(item, index) => `${item.songName}-${item.artist}-${index}`}
+          renderItem={({ item }) => <SongItem similarSong={item} />}
+          style={styles.similarList}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <Text style={styles.emptyText}>
+              Selecciona una canción del catálogo para ver recomendaciones personalizadas por Machine Learning.
+            </Text>
+          }
+        />
+      )}
     </SafeAreaView>
   );
 };
@@ -406,6 +437,17 @@ const styles = StyleSheet.create({
   },
   loader: {
     marginVertical: 20,
+  },
+  recommendationsLoaderContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+  },
+  recommendationsLoadingText: {
+    color: '#1DB954',
+    fontSize: 13,
+    marginLeft: 10,
+    fontStyle: 'italic',
   },
   emptyText: {
     color: '#707070',
