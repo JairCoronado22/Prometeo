@@ -1,18 +1,33 @@
 import { Song, SimilarSongDTO, User, ListeningHistory } from '../types';
 
-// Servidor Backend Spring Boot (C:\Users\artik\Apolo\prometeo)
-// Emulador Android: 'http://10.0.2.2:8080' | Dispositivo Físico / Red Local: 'http://192.168.1.13:8080'
-export const BASE_URL = 'http://10.0.2.2:8080';
+const BASE_URLS = ['http://10.0.2.2:8080', 'http://localhost:8080', 'http://127.0.0.1:8080'];
+
+async function fetchWithFallback(endpoint: string, options?: RequestInit): Promise<Response> {
+  let lastError: any = null;
+  for (const baseUrl of BASE_URLS) {
+    try {
+      const response = await fetch(`${baseUrl}${endpoint}`, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(options?.headers || {}),
+        },
+      });
+      if (response.ok) {
+        return response;
+      }
+    } catch (e) {
+      lastError = e;
+    }
+  }
+  throw lastError || new Error('Network request failed');
+}
 
 export const apoloApi = {
   async getUser(username: string): Promise<User> {
-    const response = await fetch(`${BASE_URL}/api/users/${encodeURIComponent(username)}`, {
+    const response = await fetchWithFallback(`/api/users/${encodeURIComponent(username)}`, {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
     });
-    if (!response.ok) {
-      throw new Error(`HTTP error: ${response.status}`);
-    }
     return response.json();
   },
 
@@ -23,38 +38,26 @@ export const apoloApi = {
       createdAt: user.createdAt || new Date().toISOString().split('.')[0],
     };
 
-    const response = await fetch(`${BASE_URL}/api/users`, {
+    const response = await fetchWithFallback('/api/users', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(defaultUser),
     });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error: ${response.status}`);
-    }
     return response.json();
   },
 
   async getAllSongs(): Promise<Song[]> {
-    const response = await fetch(`${BASE_URL}/api/songs`, {
+    const response = await fetchWithFallback('/api/songs', {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
     });
-    if (!response.ok) {
-      throw new Error(`HTTP error: ${response.status}`);
-    }
     return response.json();
   },
 
   async getSimilarSongs(artist: string, songName: string): Promise<SimilarSongDTO[]> {
-    const url = `${BASE_URL}/api/songs/similar?artist=${encodeURIComponent(artist)}&songName=${encodeURIComponent(songName)}`;
-    const response = await fetch(url, {
+    const url = `/api/songs/similar?artist=${encodeURIComponent(artist)}&songName=${encodeURIComponent(songName)}`;
+    const response = await fetchWithFallback(url, {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
     });
-    if (!response.ok) {
-      throw new Error(`HTTP error: ${response.status}`);
-    }
     return response.json();
   },
 
@@ -76,15 +79,11 @@ export const apoloApi = {
       completed: history.completed ?? true,
     };
 
-    const response = await fetch(`${BASE_URL}/api/listening-history`, {
+    const response = await fetchWithFallback('/api/listening-history', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
 
-    if (!response.ok) {
-      throw new Error(`HTTP error: ${response.status}`);
-    }
     return response.json();
   },
 };

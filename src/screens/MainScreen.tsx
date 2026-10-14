@@ -57,34 +57,49 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
 
   const useFallbackSongs = () => {
     const fallbackSongs: Song[] = [
-      { id: { songName: 'Cariñito', songArtist: 'Los Hijos del Sol' } },
-      { id: { songName: 'Contigo Perú', songArtist: 'Zambo Cavero' } },
-      { id: { songName: 'Blinding Lights', songArtist: 'The Weeknd' } },
       { id: { songName: 'Shape of You', songArtist: 'Ed Sheeran' } },
+      { id: { songName: 'Love Yourself', songArtist: 'Justin Bieber' } },
+      { id: { songName: 'Crazy in Love', songArtist: 'Beyoncé' } },
+      { id: { songName: 'I Will Always Love You', songArtist: 'Whitney Houston' } },
+      { id: { songName: "Can't Help Falling in Love", songArtist: 'Elvis Presley' } },
+      { id: { songName: 'With or Without You', songArtist: 'U2' } },
+      { id: { songName: 'Someone Like You', songArtist: 'Adele' } },
+      { id: { songName: 'All of Me', songArtist: 'John Legend' } },
+      { id: { songName: 'Perfect', songArtist: 'Ed Sheeran' } },
+      { id: { songName: 'Blinding Lights', songArtist: 'The Weeknd' } },
       { id: { songName: 'Starboy', songArtist: 'The Weeknd' } },
       { id: { songName: 'Levitating', songArtist: 'Dua Lipa' } },
+      { id: { songName: 'Cariñito', songArtist: 'Los Hijos del Sol' } },
+      { id: { songName: 'Contigo Perú', songArtist: 'Arturo Zambo Cavero' } },
       { id: { songName: 'A Través del Vaso', songArtist: 'Grupo 5' } },
       { id: { songName: 'El Cervecero', songArtist: 'Armonía 10' } },
       { id: { songName: 'Smooth Criminal', songArtist: 'Michael Jackson' } },
       { id: { songName: 'Bohemian Rhapsody', songArtist: 'Queen' } },
+      { id: { songName: 'Hotel California', songArtist: 'Eagles' } },
+      { id: { songName: 'As You Were', songArtist: 'Liam Gallagher' } },
     ];
     setAllSongs(fallbackSongs);
     setFilteredSongs(fallbackSongs);
   };
 
-  const handleSearch = useCallback(() => {
-    const query = searchQuery.trim().toLowerCase();
-    if (query !== '') {
-      const filtered = allSongs.filter(
+  const filterSongsByQuery = useCallback((query: string, songsList: Song[]) => {
+    const cleaned = query.trim().toLowerCase();
+    if (cleaned !== '') {
+      const filtered = songsList.filter(
         (song) =>
-          song.id.songName.toLowerCase().includes(query) ||
-          song.id.songArtist.toLowerCase().includes(query)
+          song.id.songName.toLowerCase().includes(cleaned) ||
+          song.id.songArtist.toLowerCase().includes(cleaned)
       );
       setFilteredSongs(filtered);
     } else {
-      setFilteredSongs(allSongs);
+      setFilteredSongs(songsList);
     }
-  }, [searchQuery, allSongs]);
+  }, []);
+
+  const handleSearchTextChange = (text: string) => {
+    setSearchQuery(text);
+    filterSongsByQuery(text, allSongs);
+  };
 
   const catalogLabel = useMemo(() => {
     return `CATÁLOGO DE CANCIONES (${filteredSongs.length})`;
@@ -112,51 +127,71 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
         location: locStr,
       };
       await apoloApi.createHistory(historyEntry);
-    } catch (e) {
-      console.warn('Error al registrar historial en backend:', e);
+    } catch {
+      // Silencioso para evitar avisos visuales innecesarios
     }
   };
 
   const fetchSimilarSongs = async (song: Song) => {
     try {
       const similar = await apoloApi.getSimilarSongs(song.id.songArtist, song.id.songName);
-      setSimilarSongs(similar);
+      if (similar && similar.length > 0) {
+        setSimilarSongs(similar);
+      } else {
+        useFallbackSimilarSongs(song);
+      }
     } catch {
-      setSimilarSongs([
-        {
-          songName: `${song.id.songName} (Acústico)`,
-          artist: song.id.songArtist,
-          durationSeconds: 210,
-          genres: ['pop'],
-          subgenres: ['latin-pop'],
-          popularity: 90,
-          similarity: 0.95,
-        },
-        {
-          songName: `${song.id.songName} (Remix)`,
-          artist: song.id.songArtist,
-          durationSeconds: 230,
-          genres: ['pop'],
-          subgenres: ['dance'],
-          popularity: 88,
-          similarity: 0.91,
-        },
-        {
-          songName: 'Contigo Perú',
-          artist: 'Zambo Cavero',
-          durationSeconds: 200,
-          genres: ['criollo'],
-          subgenres: ['peruvian-folk'],
-          popularity: 85,
-          similarity: 0.86,
-        },
-      ]);
+      useFallbackSimilarSongs(song);
     }
+  };
+
+  const useFallbackSimilarSongs = (song: Song) => {
+    setSimilarSongs([
+      {
+        songName: `${song.id.songName} (Acústico)`,
+        artist: song.id.songArtist,
+        durationSeconds: 210,
+        genres: ['pop'],
+        subgenres: ['latin-pop'],
+        popularity: 92,
+        similarity: 0.96,
+      },
+      {
+        songName: `${song.id.songName} (Remix)`,
+        artist: song.id.songArtist,
+        durationSeconds: 230,
+        genres: ['pop'],
+        subgenres: ['dance'],
+        popularity: 89,
+        similarity: 0.91,
+      },
+      {
+        songName: 'Shape of You',
+        artist: 'Ed Sheeran',
+        durationSeconds: 233,
+        genres: ['pop'],
+        subgenres: ['dance-pop'],
+        popularity: 95,
+        similarity: 0.88,
+      },
+      {
+        songName: 'Contigo Perú',
+        artist: 'Arturo Zambo Cavero',
+        durationSeconds: 200,
+        genres: ['criollo'],
+        subgenres: ['peruvian-folk'],
+        popularity: 85,
+        similarity: 0.85,
+      },
+    ]);
   };
 
   const handleSelectSong = (song: Song) => {
     setSelectedSong(song);
-    Alert.alert('Recomendando', `Generando recomendaciones basadas en:\n"${song.id.songName}" de ${song.id.songArtist}`);
+    Alert.alert(
+      'Recomendando',
+      `Generando recomendaciones basadas en:\n"${song.id.songName}" de ${song.id.songArtist}`
+    );
     saveToHistoryAndBackend(song);
     fetchSimilarSongs(song);
   };
@@ -177,7 +212,7 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
       },
       {
         songName: 'Contigo Perú',
-        artist: 'Zambo Cavero',
+        artist: 'Arturo Zambo Cavero',
         durationSeconds: 200,
         genres: ['criollo'],
         subgenres: ['vals-peruano'],
@@ -229,7 +264,7 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
         onRecommendByLocation={handleRecommendByLocation}
       />
 
-      {/* Barra de Búsqueda */}
+      {/* Barra de Búsqueda con Filtrado en Tiempo Real */}
       <View style={styles.searchRow}>
         <TextInput
           ref={searchInputRef}
@@ -237,11 +272,15 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
           placeholder="Buscar canción o artista..."
           placeholderTextColor="#707070"
           value={searchQuery}
-          onChangeText={setSearchQuery}
+          onChangeText={handleSearchTextChange}
           returnKeyType="search"
-          onSubmitEditing={handleSearch}
+          onSubmitEditing={() => filterSongsByQuery(searchQuery, allSongs)}
         />
-        <TouchableOpacity style={styles.searchButton} onPress={handleSearch} activeOpacity={0.8}>
+        <TouchableOpacity
+          style={styles.searchButton}
+          onPress={() => filterSongsByQuery(searchQuery, allSongs)}
+          activeOpacity={0.8}
+        >
           <Text style={styles.searchButtonText}>BUSCAR</Text>
         </TouchableOpacity>
       </View>
@@ -258,12 +297,18 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
           renderItem={({ item }) => (
             <SongItem
               song={item}
-              isSelected={selectedSong?.id.songName === item.id.songName && selectedSong?.id.songArtist === item.id.songArtist}
+              isSelected={
+                selectedSong?.id.songName === item.id.songName &&
+                selectedSong?.id.songArtist === item.id.songArtist
+              }
               onPress={() => handleSelectSong(item)}
             />
           )}
           style={styles.songsList}
           showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <Text style={styles.emptyText}>No se encontraron canciones para tu búsqueda.</Text>
+          }
         />
       )}
 
