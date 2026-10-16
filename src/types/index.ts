@@ -42,6 +42,10 @@ export interface ListeningHistory {
   location?: string;
 }
 
+export interface ListeningHistoryRecord extends ListeningHistory {
+  id: number;
+}
+
 export type RootStackParamList = {
   Login: undefined;
   Main: { username: string };

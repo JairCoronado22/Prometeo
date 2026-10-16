@@ -37,6 +37,22 @@ export const historyStorage = {
     }
   },
 
+  async removeSong(song: Song): Promise<void> {
+    try {
+      const jsonValue = await AsyncStorage.getItem(HISTORY_KEY);
+      const currentHistory: Song[] = jsonValue == null ? [] : JSON.parse(jsonValue);
+      const updatedHistory = currentHistory.filter(
+        (item) =>
+          item.id.songName !== song.id.songName ||
+          item.id.songArtist !== song.id.songArtist
+      );
+      await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(updatedHistory));
+    } catch (e) {
+      console.error('Error al eliminar canción del historial:', e);
+      throw e;
+    }
+  },
+
   async clearHistory(): Promise<void> {
     try {
       await AsyncStorage.removeItem(HISTORY_KEY);

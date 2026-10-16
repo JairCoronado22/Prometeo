@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, StyleProp, ViewStyle } from 'react-native';
 import { Song, SimilarSongDTO } from '../types';
 
 interface SongItemProps {
@@ -7,6 +7,7 @@ interface SongItemProps {
   similarSong?: SimilarSongDTO;
   isSelected?: boolean;
   onPress?: () => void;
+  style?: StyleProp<ViewStyle>;
 }
 
 export function isValidSong(song: Song): boolean {
@@ -39,14 +40,20 @@ export function isValidSimilarSong(similar: SimilarSongDTO): boolean {
   return /[a-zA-Z0-9áéíóúÁÉÍÓÚñÑ]/.test(name) && /[a-zA-Z0-9áéíóúÁÉÍÓÚñÑ]/.test(artist);
 }
 
-export const SongItem: React.FC<SongItemProps> = ({ song, similarSong, isSelected, onPress }) => {
+export const SongItem: React.FC<SongItemProps> = ({
+  song,
+  similarSong,
+  isSelected,
+  onPress,
+  style,
+}) => {
   const songName = song?.id.songName || similarSong?.songName || '';
   const artistName = song?.id.songArtist || similarSong?.artist || '';
   const similarityText = similarSong ? ` • ${Math.round(similarSong.similarity * 100)}% coincidencia` : '';
 
   return (
     <TouchableOpacity
-      style={[styles.container, isSelected && styles.selectedContainer]}
+      style={[styles.container, isSelected && styles.selectedContainer, style]}
       onPress={onPress}
       activeOpacity={0.7}
     >

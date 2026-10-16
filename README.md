@@ -137,3 +137,5 @@ En `src/api/apoloApi.ts`, la variable `BASE_URL` está configurada por defecto c
 
 - **Emuladores de Android Studio**: `http://10.0.2.2:8080` apunta de manera nativa al `localhost:8080` de tu computadora.
 - **Dispositivo Físico**: Al ejecutar `adb reverse tcp:8080 tcp:8080`, `http://10.0.2.2:8080` o `http://localhost:8080` funcionará automáticamente sin necesidad de modificar el código.
+
+Ten en cuenta que adb reverse se pierde al desconectar el teléfono o reiniciarlo. Si vuelve a pasar, ejecuta adb reverse tcp:8080 tcp:8080 con el teléfono conectado por USB. Si quieres usar la app por 4G sin USB, el backend tendrá que estar accesible desde internet; localhost no lo conecta a la computadora en ese caso.

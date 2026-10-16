@@ -1,4 +1,10 @@
-import { Song, SimilarSongDTO, User, ListeningHistory } from '../types';
+import {
+  Song,
+  SimilarSongDTO,
+  User,
+  ListeningHistory,
+  ListeningHistoryRecord,
+} from '../types';
 
 const BASE_URLS = ['http://localhost:8080'];
 
@@ -85,5 +91,17 @@ export const apoloApi = {
     });
 
     return response.json();
+  },
+
+  async getUserHistory(username: string): Promise<ListeningHistoryRecord[]> {
+    const response = await fetchWithFallback(
+      `/api/listening-history/user/${encodeURIComponent(username)}`,
+      { method: 'GET' }
+    );
+    return response.json();
+  },
+
+  async deleteHistory(id: number): Promise<void> {
+    await fetchWithFallback(`/api/listening-history/${id}`, { method: 'DELETE' });
   },
 };
