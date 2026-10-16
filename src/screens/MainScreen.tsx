@@ -20,6 +20,12 @@ import { useLocation } from '../hooks/useLocation';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Main'>;
 
+const formatPlaybackTime = (seconds: number): string => {
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+};
+
 export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
   const username = route.params?.username || 'Invitado';
 
@@ -27,6 +33,9 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
   const [filteredSongs, setFilteredSongs] = useState<Song[]>([]);
   const [similarSongs, setSimilarSongs] = useState<SimilarSongDTO[]>([]);
   const [selectedSong, setSelectedSong] = useState<Song | null>(null);
+  const [isPlayerExpanded, setIsPlayerExpanded] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackPosition, setPlaybackPosition] = useState(0);
   const [isLocationMode, setIsLocationMode] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
@@ -34,10 +43,31 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
 
   const { location, loadingLocation, refreshLocation } = useLocation();
   const searchInputRef = useRef<TextInput>(null);
+  const playbackDurationSeconds = selectedSong?.durationMs
+    ? Math.max(1, Math.floor(selectedSong.durationMs / 1000))
+    : 210;
 
   useEffect(() => {
     fetchAllSongs();
   }, []);
+
+  useEffect(() => {
+    if (!selectedSong || !isPlaying || playbackPosition >= playbackDurationSeconds) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setPlaybackPosition((position) => Math.min(position + 1, playbackDurationSeconds));
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [selectedSong, isPlaying, playbackPosition, playbackDurationSeconds]);
+
+  useEffect(() => {
+    if (playbackPosition >= playbackDurationSeconds) {
+      setIsPlaying(false);
+    }
+  }, [playbackPosition, playbackDurationSeconds]);
 
   const fetchAllSongs = async () => {
     setLoading(true);
@@ -214,12 +244,17 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
   const handleSelectSong = (song: Song) => {
     setIsLocationMode(false);
     setSelectedSong(song);
+    setIsPlayerExpanded(true);
+    setPlaybackPosition(0);
+    setIsPlaying(true);
     saveToHistoryAndBackend(song);
     fetchSimilarSongs(song);
   };
 
   const handleRecommendByLocation = () => {
     setSelectedSong(null);
+    setIsPlayerExpanded(false);
+    setIsPlaying(false);
     setIsLocationMode(true);
     setLoadingRecommendations(true);
 
@@ -266,6 +301,92 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
     }, 400);
   };
 
+  if (selectedSong && isPlayerExpanded) {
+    return (
+      <SafeAreaView style={styles.fullPlayerContainer}>
+        <StatusBar barStyle="light-content" backgroundColor="#121212" />
+
+        <View style={styles.fullPlayerHeader}>
+          <TouchableOpacity
+            style={styles.collapseButton}
+            onPress={() => setIsPlayerExpanded(false)}
+            accessibilityRole="button"
+            accessibilityLabel="Volver al catálogo"
+            hitSlop={8}
+          >
+            <Text style={styles.collapseButtonIcon}>⌄</Text>
+          </TouchableOpacity>
+          <Text style={styles.fullPlayerEyebrow}>REPRODUCIENDO AHORA</Text>
+          <View style={styles.headerButtonSpacer} />
+        </View>
+
+        <View style={styles.fullPlayerArtworkArea}>
+          <View style={styles.fullPlayerArtwork}>
+            <Text style={styles.fullPlayerArtworkIcon}>♫</Text>
+          </View>
+        </View>
+
+        <View style={styles.fullPlayerInfo}>
+          <Text style={styles.fullPlayerSongName} numberOfLines={2}>
+            {selectedSong.id.songName}
+          </Text>
+          <Text style={styles.fullPlayerArtist} numberOfLines={1}>
+            {selectedSong.id.songArtist}
+          </Text>
+        </View>
+
+        <View style={styles.fullPlayerProgress}>
+          <View style={styles.progressTrack}>
+            <View
+              style={[
+                styles.progressFill,
+                { width: `${(playbackPosition / playbackDurationSeconds) * 100}%` },
+              ]}
+            />
+          </View>
+          <View style={styles.playerFooter}>
+            <Text style={styles.playerTime}>{formatPlaybackTime(playbackPosition)}</Text>
+            <Text style={styles.playerTime}>
+              {formatPlaybackTime(playbackDurationSeconds)}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.fullPlayerControls}>
+          <TouchableOpacity
+            onPress={() => setPlaybackPosition((position) => Math.max(0, position - 10))}
+            accessibilityRole="button"
+            accessibilityLabel="Retroceder 10 segundos"
+            hitSlop={12}
+          >
+            <Text style={styles.fullPlayerSkipControl}>−10</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.fullPlayerPlayButton}
+            onPress={() => setIsPlaying((playing) => !playing)}
+            accessibilityRole="button"
+            accessibilityLabel={isPlaying ? 'Pausar' : 'Reproducir'}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.fullPlayerPlayButtonIcon}>{isPlaying ? 'Ⅱ' : '▶'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() =>
+              setPlaybackPosition((position) =>
+                Math.min(playbackDurationSeconds, position + 10)
+              )
+            }
+            accessibilityRole="button"
+            accessibilityLabel="Avanzar 10 segundos"
+            hitSlop={12}
+          >
+            <Text style={styles.fullPlayerSkipControl}>+10</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#121212" />
@@ -310,6 +431,69 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
           <Text style={styles.searchButtonText}>BUSCAR</Text>
         </TouchableOpacity>
       </View>
+
+      {selectedSong && (
+        <View style={styles.playerCard}>
+          <View style={styles.playerArtwork}>
+            <Text style={styles.playerArtworkIcon}>♫</Text>
+          </View>
+          <View style={styles.playerContent}>
+            <Text style={styles.playerSongName} numberOfLines={1}>
+              {selectedSong.id.songName}
+            </Text>
+            <Text style={styles.playerArtist} numberOfLines={1}>
+              {selectedSong.id.songArtist}
+            </Text>
+            <View style={styles.progressTrack}>
+              <View
+                style={[
+                  styles.progressFill,
+                  { width: `${(playbackPosition / playbackDurationSeconds) * 100}%` },
+                ]}
+              />
+            </View>
+            <View style={styles.playerFooter}>
+              <Text style={styles.playerTime}>{formatPlaybackTime(playbackPosition)}</Text>
+              <View style={styles.playerControls}>
+                <TouchableOpacity
+                  onPress={() =>
+                    setPlaybackPosition((position) => Math.max(0, position - 10))
+                  }
+                  accessibilityRole="button"
+                  accessibilityLabel="Retroceder 10 segundos"
+                  hitSlop={8}
+                >
+                  <Text style={styles.skipControl}>−10</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.playButton}
+                  onPress={() => setIsPlaying((playing) => !playing)}
+                  accessibilityRole="button"
+                  accessibilityLabel={isPlaying ? 'Pausar' : 'Reproducir'}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.playButtonIcon}>{isPlaying ? 'Ⅱ' : '▶'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() =>
+                    setPlaybackPosition((position) =>
+                      Math.min(playbackDurationSeconds, position + 10)
+                    )
+                  }
+                  accessibilityRole="button"
+                  accessibilityLabel="Avanzar 10 segundos"
+                  hitSlop={8}
+                >
+                  <Text style={styles.skipControl}>+10</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.playerTime}>
+                {formatPlaybackTime(playbackDurationSeconds)}
+              </Text>
+            </View>
+          </View>
+        </View>
+      )}
 
       {/* Sección 1: Catálogo de Canciones */}
       <Text style={styles.sectionTitle}>{catalogLabel}</Text>
@@ -371,6 +555,101 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 10,
   },
+  fullPlayerContainer: {
+    flex: 1,
+    backgroundColor: '#121212',
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    paddingBottom: 24,
+  },
+  fullPlayerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 44,
+  },
+  collapseButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
+  collapseButtonIcon: {
+    color: '#FFFFFF',
+    fontSize: 32,
+    lineHeight: 36,
+  },
+  fullPlayerEyebrow: {
+    color: '#B3B3B3',
+    fontSize: 11,
+    fontWeight: 'bold',
+    letterSpacing: 1.5,
+  },
+  headerButtonSpacer: {
+    width: 40,
+  },
+  fullPlayerArtworkArea: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingVertical: 24,
+  },
+  fullPlayerArtwork: {
+    width: '100%',
+    aspectRatio: 1,
+    maxWidth: 360,
+    maxHeight: 360,
+    alignSelf: 'center',
+    borderRadius: 12,
+    backgroundColor: '#282828',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fullPlayerArtworkIcon: {
+    color: '#1DB954',
+    fontSize: 120,
+    fontWeight: 'bold',
+  },
+  fullPlayerInfo: {
+    marginBottom: 24,
+  },
+  fullPlayerSongName: {
+    color: '#FFFFFF',
+    fontSize: 26,
+    fontWeight: 'bold',
+  },
+  fullPlayerArtist: {
+    color: '#B3B3B3',
+    fontSize: 16,
+    marginTop: 8,
+  },
+  fullPlayerProgress: {
+    marginBottom: 20,
+  },
+  fullPlayerControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-evenly',
+    marginBottom: 20,
+  },
+  fullPlayerSkipControl: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    paddingHorizontal: 12,
+  },
+  fullPlayerPlayButton: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#1DB954',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fullPlayerPlayButtonIcon: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -417,6 +696,95 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
   searchButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: 'bold',
+  },
+  playerCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1e1e1e',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#333333',
+  },
+  playerArtwork: {
+    width: 64,
+    height: 64,
+    borderRadius: 8,
+    backgroundColor: '#282828',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  playerArtworkIcon: {
+    color: '#1DB954',
+    fontSize: 34,
+    fontWeight: 'bold',
+  },
+  playerContent: {
+    flex: 1,
+  },
+  playerEyebrow: {
+    color: '#1DB954',
+    fontSize: 9,
+    fontWeight: 'bold',
+    letterSpacing: 1,
+    marginBottom: 3,
+  },
+  playerSongName: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  playerArtist: {
+    color: '#909090',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  progressTrack: {
+    height: 3,
+    backgroundColor: '#444444',
+    borderRadius: 2,
+    marginTop: 10,
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#1DB954',
+    borderRadius: 2,
+  },
+  playerFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 6,
+  },
+  playerTime: {
+    color: '#909090',
+    fontSize: 10,
+    minWidth: 28,
+  },
+  playerControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  skipControl: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+    paddingHorizontal: 10,
+  },
+  playButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#1DB954',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playButtonIcon: {
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: 'bold',
