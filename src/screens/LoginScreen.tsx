@@ -5,6 +5,7 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
+  Image,
   ActivityIndicator,
   Alert,
   SafeAreaView,
@@ -59,9 +60,12 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
 
       <View style={styles.content}>
         <View style={styles.logoContainer}>
-          <View style={styles.logoCircle}>
-            <Text style={styles.logoText}>P</Text>
-          </View>
+          <Image
+            source={require('../assets/prometeo-logo.jpeg')}
+            style={styles.logoImage}
+            resizeMode="contain"
+            accessibilityLabel="Logo de Prometeo"
+          />
         </View>
 
         <Text style={styles.title}>Prometeus</Text>
@@ -113,18 +117,10 @@ const styles = StyleSheet.create({
   logoContainer: {
     marginBottom: 24,
   },
-  logoCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: '#1DB954',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  logoText: {
-    fontSize: 56,
-    fontWeight: 'bold',
-    color: '#121212',
+  logoImage: {
+    width: 160,
+    height: 151,
+    borderRadius: 12,
   },
   title: {
     color: '#FFFFFF',
