@@ -11,6 +11,8 @@
 - **Navegación**: React Navigation (Native Stack)
 - **Gestión de Estado**: React Context API (`AuthContext`)
 - **Custom Hooks**: `useLocation` para geolocalización, `useAuth` para sesión
+- **Sensores**: acelerómetro para descubrir canciones similares al agitar el dispositivo
+- **Respuesta háptica**: vibración al cargar recomendaciones
 - **Persistencia Local**: `@react-native-async-storage/async-storage`
 - **Geolocalización**: `PermissionsAndroid` + Geolocation / IP API
 - **Cliente HTTP**: Fetch API nativa
@@ -47,7 +49,8 @@ prometeo/
     ├── context/
     │   └── AuthContext.tsx     # Contexto global de sesión de usuario
     ├── hooks/
-    │   └── useLocation.ts      # Hook personalizado para geolocalización
+    │   ├── useLocation.ts      # Hook personalizado para geolocalización
+    │   └── useShake.ts         # Detecta sacudidas con el acelerómetro
     ├── navigation/
     │   └── AppNavigator.tsx    # Configuración de rutas (Stack Navigator)
     ├── screens/
@@ -117,6 +120,12 @@ Si ejecutas la app en un teléfono físico conectado por cable USB:
 ---
 
 ## 🌐 Endpoints REST Consumidos
+
+En la pantalla de exploración, selecciona una canción y agita el dispositivo para volver a
+consultar recomendaciones similares. La app reutiliza `GET /api/songs/similar` sin cambios
+en el backend. El acelerómetro no requiere permiso de ejecución; Android declara el permiso
+`VIBRATE` para la respuesta háptica. La escucha del sensor se detiene al salir de la pantalla
+o abrir el reproductor.
 
 La aplicación interactúa con los siguientes endpoints del backend Spring Boot (`src/api/apoloApi.ts`):
 

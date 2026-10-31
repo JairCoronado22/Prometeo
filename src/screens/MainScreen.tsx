@@ -9,7 +9,10 @@ import {
   ActivityIndicator,
   SafeAreaView,
   StatusBar,
+  Alert,
+  Vibration,
 } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList, Song, SimilarSongDTO, ListeningHistory } from '../types';
 import { apoloApi } from '../api/apoloApi';
@@ -17,6 +20,7 @@ import { historyStorage } from '../services/historyStorage';
 import { SongItem, isValidSong, isValidSimilarSong } from '../components/SongItem';
 import { LocationBanner } from '../components/LocationBanner';
 import { useLocation } from '../hooks/useLocation';
+import { useShake } from '../hooks/useShake';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Main'>;
 
@@ -43,6 +47,7 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
 
   const { location, loadingLocation, refreshLocation } = useLocation();
   const searchInputRef = useRef<TextInput>(null);
+  const isScreenFocused = useIsFocused();
   const playbackDurationSeconds = selectedSong?.durationMs
     ? Math.max(1, Math.floor(selectedSong.durationMs / 1000))
     : 210;
@@ -189,13 +194,18 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
       const similar = await apoloApi.getSimilarSongs(song.id.songArtist, song.id.songName);
       if (similar && similar.length > 0) {
         const validSimilar = similar.filter(isValidSimilarSong);
-        setSimilarSongs(validSimilar);
+        if (validSimilar.length > 0) {
+          setSimilarSongs(validSimilar);
+        } else {
+          useFallbackSimilarSongs(song);
+        }
       } else {
         useFallbackSimilarSongs(song);
       }
     } catch {
       useFallbackSimilarSongs(song);
     } finally {
+      Vibration.vibrate(80);
       setLoadingRecommendations(false);
     }
   };
@@ -250,6 +260,29 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
     saveToHistoryAndBackend(song);
     fetchSimilarSongs(song);
   };
+
+  const handleShake = () => {
+    if (loadingRecommendations) {
+      return;
+    }
+
+    if (!selectedSong) {
+      Alert.alert(
+        'Descubre canciones',
+        'Selecciona primero una canción del catálogo y luego agita el teléfono.'
+      );
+      return;
+    }
+
+    setIsLocationMode(false);
+    setIsPlaying(false);
+    fetchSimilarSongs(selectedSong);
+  };
+
+  const shakeSensorAvailable = useShake(
+    handleShake,
+    isScreenFocused && !isPlayerExpanded
+  );
 
   const handleRecommendByLocation = () => {
     setSelectedSong(null);
@@ -431,6 +464,14 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
           <Text style={styles.searchButtonText}>BUSCAR</Text>
         </TouchableOpacity>
       </View>
+
+      <Text style={styles.shakeHint} accessibilityLiveRegion="polite">
+        {shakeSensorAvailable === false
+          ? 'Acelerómetro no disponible. Puedes explorar canciones manualmente.'
+          : selectedSong
+            ? 'Agita el teléfono para descubrir canciones similares.'
+            : 'Selecciona una canción y agita el teléfono para descubrir similares.'}
+      </Text>
 
       {selectedSong && (
         <View style={styles.playerCard}>
@@ -699,6 +740,11 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: 'bold',
+  },
+  shakeHint: {
+    color: '#909090',
+    fontSize: 11,
+    marginBottom: 12,
   },
   playerCard: {
     flexDirection: 'row',
