@@ -7,9 +7,15 @@ export const useLocation = () => {
 
   const fetchLocation = useCallback(async () => {
     setLoadingLocation(true);
-    const loc = await locationService.getCurrentLocation();
-    setLocation(loc);
-    setLoadingLocation(false);
+    try {
+      const loc = await locationService.getCurrentLocation();
+      setLocation(loc);
+    } catch (error) {
+      console.warn('No se pudo determinar la ubicación del dispositivo:', error);
+      setLocation(null);
+    } finally {
+      setLoadingLocation(false);
+    }
   }, []);
 
   useEffect(() => {

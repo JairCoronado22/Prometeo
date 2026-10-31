@@ -118,6 +118,23 @@ Si ejecutas la app en un teléfono físico conectado por cable USB:
    npx react-native run-android
    ```
 
+### ✅ Validar el frontend
+
+Desde la raíz del proyecto:
+
+```bash
+npx tsc --noEmit --pretty false
+npm test
+```
+
+Para validar también la compilación nativa de Android:
+
+```powershell
+Push-Location android
+.\gradlew.bat :app:assembleDebug
+Pop-Location
+```
+
 ---
 
 ## 🌐 Endpoints REST Consumidos

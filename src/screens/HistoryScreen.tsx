@@ -8,6 +8,7 @@ import {
   SafeAreaView,
   StatusBar,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList, Song } from '../types';
@@ -20,16 +21,38 @@ type Props = NativeStackScreenProps<RootStackParamList, 'History'>;
 
 export const HistoryScreen: React.FC<Props> = ({ navigation }) => {
   const [historySongs, setHistorySongs] = useState<Song[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(true);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historyReloadKey, setHistoryReloadKey] = useState(0);
   const { username, backendSyncEnabled } = useAuth();
 
   useEffect(() => {
-    loadHistory();
-  }, []);
+    let active = true;
+    const loadHistory = async () => {
+      setLoadingHistory(true);
+      setHistoryError(null);
+      try {
+        const songs = await historyStorage.getHistory();
+        if (active) {
+          setHistorySongs(songs);
+        }
+      } catch (error) {
+        console.error('Error al leer el historial local:', error);
+        if (active) {
+          setHistoryError('No se pudo cargar el historial del dispositivo.');
+        }
+      } finally {
+        if (active) {
+          setLoadingHistory(false);
+        }
+      }
+    };
 
-  const loadHistory = async () => {
-    const songs = await historyStorage.getHistory();
-    setHistorySongs(songs);
-  };
+    void loadHistory();
+    return () => {
+      active = false;
+    };
+  }, [historyReloadKey]);
 
   const deleteSong = async (song: Song) => {
     try {
@@ -125,9 +148,24 @@ export const HistoryScreen: React.FC<Props> = ({ navigation }) => {
         )}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No hay canciones guardadas en el historial.</Text>
-          </View>
+          loadingHistory ? (
+            <ActivityIndicator size="large" color="#1DB954" style={styles.loader} />
+          ) : historyError ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>{historyError}</Text>
+              <TouchableOpacity
+                style={styles.retryButton}
+                onPress={() => setHistoryReloadKey((key) => key + 1)}
+                accessibilityRole="button"
+              >
+                <Text style={styles.retryButtonText}>Reintentar</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No hay canciones guardadas en el historial.</Text>
+            </View>
+          )
         }
       />
     </SafeAreaView>
@@ -167,6 +205,21 @@ const styles = StyleSheet.create({
     color: '#909090',
     fontSize: 12,
     marginBottom: 16,
+  },
+  loader: {
+    marginTop: 40,
+  },
+  retryButton: {
+    marginTop: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: '#1e1e1e',
+  },
+  retryButtonText: {
+    color: '#1DB954',
+    fontSize: 14,
+    fontWeight: '600',
   },
   emptyContainer: {
     alignItems: 'center',

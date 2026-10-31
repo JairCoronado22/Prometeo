@@ -50,7 +50,12 @@ export const locationService = {
   },
 
   async getCurrentLocation(): Promise<LocationData> {
-    const hasPermission = await this.requestPermission();
+    let hasPermission = false;
+    try {
+      hasPermission = await this.requestPermission();
+    } catch (error) {
+      console.warn('No se pudo solicitar el permiso de ubicación:', error);
+    }
 
     try {
       if (hasPermission) {

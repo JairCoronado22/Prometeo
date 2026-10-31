@@ -190,10 +190,21 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
   }, [selectedSong, isLocationMode, location]);
 
   const saveToHistoryAndBackend = async (song: Song) => {
-    await historyStorage.addSong(song);
-    setHistoryNotice(null);
+    let savedLocally = false;
+    try {
+      await historyStorage.addSong(song);
+      savedLocally = true;
+      setHistoryNotice(null);
+    } catch (error) {
+      console.error('No se pudo guardar la canción en el historial local:', error);
+      setHistoryNotice('No se pudo guardar la canción en el historial del dispositivo.');
+    }
 
     if (!backendSyncEnabled || catalogNotice) {
+      if (!savedLocally) {
+        return;
+      }
+
       const reason = !backendSyncEnabled
         ? username === 'Invitado'
           ? 'Modo invitado'
@@ -213,10 +224,15 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
         completed: false,
       };
       await apoloApi.createHistory(historyEntry);
+      if (!savedLocally) {
+        setHistoryNotice('La selección se envió a Apolo, pero no se guardó en el dispositivo.');
+      }
     } catch (error) {
       console.warn('No se pudo registrar la canción en el historial de Apolo:', error);
       setHistoryNotice(
-        'La canción se guardó localmente, pero Apolo no pudo registrar el historial.'
+        savedLocally
+          ? 'La canción se guardó localmente, pero Apolo no pudo registrar el historial.'
+          : 'No se pudo guardar la selección en el dispositivo ni en Apolo.'
       );
     }
   };
@@ -235,6 +251,7 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
         if (validSimilar.length > 0) {
           setSimilarSongs(validSimilar);
           setRecommendationsNotice(null);
+          Vibration.vibrate(80);
         } else {
           useFallbackSimilarSongs(song);
           setRecommendationsNotice(
@@ -259,7 +276,6 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
       );
     } finally {
       if (requestId === recommendationsRequestId.current) {
-        Vibration.vibrate(80);
         setLoadingRecommendations(false);
       }
     }

@@ -3,61 +3,65 @@ import { Song } from '../types';
 
 const HISTORY_KEY = '@prometeo_listening_history';
 
+const isStoredSong = (item: unknown): item is Song =>
+  item !== null &&
+  typeof item === 'object' &&
+  'id' in item &&
+  item.id !== null &&
+  typeof item.id === 'object' &&
+  'songName' in item.id &&
+  typeof item.id.songName === 'string' &&
+  'songArtist' in item.id &&
+  typeof item.id.songArtist === 'string';
+
 export const historyStorage = {
   async getHistory(): Promise<Song[]> {
-    try {
-      const jsonValue = await AsyncStorage.getItem(HISTORY_KEY);
-      return jsonValue != null ? JSON.parse(jsonValue) : [];
-    } catch (e) {
-      console.error('Error al leer el historial:', e);
+    const jsonValue = await AsyncStorage.getItem(HISTORY_KEY);
+    if (jsonValue == null) {
       return [];
     }
+
+    const parsed: unknown = JSON.parse(jsonValue);
+    if (!Array.isArray(parsed)) {
+      throw new Error('El historial guardado tiene un formato inválido.');
+    }
+
+    if (!parsed.every(isStoredSong)) {
+      throw new Error('El historial guardado contiene canciones con formato inválido.');
+    }
+
+    return parsed;
   },
 
   async addSong(song: Song): Promise<Song[]> {
-    try {
-      const currentHistory = await this.getHistory();
+    const currentHistory = await this.getHistory();
 
-      const existsIndex = currentHistory.findIndex(
-        (item) => item.id.songName === song.id.songName && item.id.songArtist === song.id.songArtist
-      );
+    const existsIndex = currentHistory.findIndex(
+      (item) => item.id.songName === song.id.songName && item.id.songArtist === song.id.songArtist
+    );
 
-      let updatedHistory = [...currentHistory];
-      if (existsIndex !== -1) {
-        updatedHistory.splice(existsIndex, 1);
-      }
-
-      updatedHistory.unshift(song);
-
-      await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(updatedHistory));
-      return updatedHistory;
-    } catch (e) {
-      console.error('Error al guardar canción en el historial:', e);
-      return [];
+    const updatedHistory = [...currentHistory];
+    if (existsIndex !== -1) {
+      updatedHistory.splice(existsIndex, 1);
     }
+
+    updatedHistory.unshift(song);
+
+    await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(updatedHistory));
+    return updatedHistory;
   },
 
   async removeSong(song: Song): Promise<void> {
-    try {
-      const jsonValue = await AsyncStorage.getItem(HISTORY_KEY);
-      const currentHistory: Song[] = jsonValue == null ? [] : JSON.parse(jsonValue);
-      const updatedHistory = currentHistory.filter(
-        (item) =>
-          item.id.songName !== song.id.songName ||
-          item.id.songArtist !== song.id.songArtist
-      );
-      await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(updatedHistory));
-    } catch (e) {
-      console.error('Error al eliminar canción del historial:', e);
-      throw e;
-    }
+    const currentHistory = await this.getHistory();
+    const updatedHistory = currentHistory.filter(
+      (item) =>
+        item.id.songName !== song.id.songName ||
+        item.id.songArtist !== song.id.songArtist
+    );
+    await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(updatedHistory));
   },
 
   async clearHistory(): Promise<void> {
-    try {
-      await AsyncStorage.removeItem(HISTORY_KEY);
-    } catch (e) {
-      console.error('Error al limpiar el historial:', e);
-    }
+    await AsyncStorage.removeItem(HISTORY_KEY);
   },
 };
