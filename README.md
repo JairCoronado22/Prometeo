@@ -133,18 +133,27 @@ La aplicación interactúa con los siguientes endpoints del backend Spring Boot 
 | :--- | :--- | :--- |
 | `GET` | `/api/users/{username}` | Consulta si un usuario ya existe en la base de datos. |
 | `POST` | `/api/users` | Registra un nuevo usuario si no existía previamente. |
-| `GET` | `/api/songs` | Obtiene el catálogo completo de canciones. |
+| `GET` | `/api/songs` | Obtiene hasta 100 canciones en la rama `main` actual. |
 | `GET` | `/api/songs/similar?artist={artist}&songName={songName}` | Obtiene recomendaciones de canciones similares procesadas por el modelo de Machine Learning. |
 | `POST` | `/api/listening-history` | Registra de forma persistente cada reproducción de canción. |
+| `GET` | `/api/listening-history/user/{username}` | Obtiene los IDs del historial de un usuario. |
+| `GET` | `/api/listening-history/song/{artist}/{songName}` | Obtiene los IDs del historial de una canción para cruzarlos con los del usuario. |
+| `DELETE` | `/api/listening-history/{id}` | Elimina un registro del historial. |
 
----
+Si el catálogo no se puede leer, Prometeo avisa y muestra canciones de ejemplo. Las
+recomendaciones por ubicación también son locales: Apolo no expone un endpoint de tendencias
+geográficas. En modo invitado, el historial se guarda solo en el dispositivo; para guardar en
+Apolo hay que iniciar sesión con un usuario sincronizado.
+
+La respuesta del endpoint de canciones en `main` debe ser JSON válido para cargar el catálogo
+real. Si la serialización de las relaciones de las entidades falla, el frontend no puede
+reconstruir de forma fiable la lista y conserva el catálogo local de ejemplo.
 
 ## 💡 Nota de Configuración de IP
 
-En `src/api/apoloApi.ts`, la variable `BASE_URL` está configurada por defecto como:
-`export const BASE_URL = 'http://10.0.2.2:8080';`
+En `src/api/apoloApi.ts`, el cliente usa por defecto `http://localhost:8080`.
 
-- **Emuladores de Android Studio**: `http://10.0.2.2:8080` apunta de manera nativa al `localhost:8080` de tu computadora.
-- **Dispositivo Físico**: Al ejecutar `adb reverse tcp:8080 tcp:8080`, `http://10.0.2.2:8080` o `http://localhost:8080` funcionará automáticamente sin necesidad de modificar el código.
+- **Emulador o dispositivo por USB**: ejecuta `adb reverse tcp:8080 tcp:8080` para que `localhost:8080` del dispositivo llegue al backend de la computadora.
+- Para Metro en un dispositivo físico, redirige también el puerto con `adb reverse tcp:8081 tcp:8081`.
 
-Ten en cuenta que adb reverse se pierde al desconectar el teléfono o reiniciarlo. Si vuelve a pasar, ejecuta adb reverse tcp:8080 tcp:8080 con el teléfono conectado por USB. Si quieres usar la app por 4G sin USB, el backend tendrá que estar accesible desde internet; localhost no lo conecta a la computadora en ese caso.
+Ten en cuenta que `adb reverse` se pierde al desconectar o reiniciar el dispositivo. Para usar la app sin USB, el backend debe estar accesible desde la red del teléfono; `localhost` no apunta a la computadora.

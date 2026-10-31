@@ -33,23 +33,13 @@ export const HistoryScreen: React.FC<Props> = ({ navigation }) => {
 
   const deleteSong = async (song: Song) => {
     try {
-      const userHistory = await apoloApi.getUserHistory(username);
-      if (
-        userHistory.some(
-          (record) => !record.song?.id?.songName || !record.song.id.songArtist
-        )
-      ) {
-        Alert.alert(
-          'No se pudo eliminar',
-          'El backend no devolvió la identidad de la canción en el historial; no se eliminó el registro.'
-        );
-        return;
-      }
-
-      const matchingRecords = userHistory.filter(
-        (record) =>
-          record.song.id.songName === song.id.songName &&
-          record.song.id.songArtist === song.id.songArtist
+      const [userHistory, songHistory] = await Promise.all([
+        apoloApi.getUserHistory(username),
+        apoloApi.getSongHistory(song.id.songArtist, song.id.songName),
+      ]);
+      const songHistoryIds = new Set(songHistory.map((record) => record.historyId));
+      const matchingRecords = userHistory.filter((record) =>
+        songHistoryIds.has(record.historyId)
       );
       await Promise.all(
         matchingRecords.map((record) => apoloApi.deleteHistory(record.historyId))

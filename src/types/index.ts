@@ -42,8 +42,11 @@ export interface ListeningHistory {
   location?: string;
 }
 
-export interface ListeningHistoryRecord extends ListeningHistory {
+export interface ListeningHistoryRecord {
   historyId: number;
+  playedAt: string;
+  durationPlayedMs: number;
+  completed?: boolean;
 }
 
 export type RootStackParamList = {

@@ -22,6 +22,7 @@ async function fetchWithFallback(endpoint: string, options?: RequestInit): Promi
       if (response.ok) {
         return response;
       }
+      lastError = new Error(`Apolo respondió con HTTP ${response.status}`);
     } catch (e) {
       lastError = e;
     }
@@ -98,6 +99,12 @@ export const apoloApi = {
       `/api/listening-history/user/${encodeURIComponent(username)}`,
       { method: 'GET' }
     );
+    return response.json();
+  },
+
+  async getSongHistory(artist: string, songName: string): Promise<ListeningHistoryRecord[]> {
+    const endpoint = `/api/listening-history/song/${encodeURIComponent(artist)}/${encodeURIComponent(songName)}`;
+    const response = await fetchWithFallback(endpoint, { method: 'GET' });
     return response.json();
   },
 

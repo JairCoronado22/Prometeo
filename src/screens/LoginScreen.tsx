@@ -32,18 +32,31 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
 
     setLoading(true);
 
-    // Asignar sesión e ingresar inmediatamente a la pantalla principal
-    setUsername(trimmedUser);
-    navigation.replace('Main', { username: trimmedUser });
-
-    // Sincronizar con el backend en segundo plano sin bloquear el flujo del usuario
     try {
-      const existingUser = await apoloApi.getUser(trimmedUser);
-      if (!existingUser) {
+      try {
+        await apoloApi.getUser(trimmedUser);
+      } catch {
         await apoloApi.createUser({ username: trimmedUser });
       }
-    } catch {
-      // Sincronización transparente
+
+      setUsername(trimmedUser);
+      navigation.replace('Main', { username: trimmedUser });
+    } catch (error) {
+      console.warn('No se pudo sincronizar el usuario con Apolo:', error);
+      Alert.alert(
+        'Sin conexión con Apolo',
+        'No se pudo preparar el usuario en el backend. Puedes continuar en modo local.',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Continuar sin sincronizar',
+            onPress: () => {
+              setUsername(trimmedUser);
+              navigation.replace('Main', { username: trimmedUser });
+            },
+          },
+        ]
+      );
     } finally {
       setLoading(false);
     }

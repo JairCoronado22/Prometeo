@@ -44,6 +44,9 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
+  const [catalogNotice, setCatalogNotice] = useState<string | null>(null);
+  const [recommendationsNotice, setRecommendationsNotice] = useState<string | null>(null);
+  const [historyNotice, setHistoryNotice] = useState<string | null>(null);
 
   const { location, loadingLocation, refreshLocation } = useLocation();
   const searchInputRef = useRef<TextInput>(null);
@@ -80,13 +83,28 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
       const data = await apoloApi.getAllSongs();
       if (data && data.length > 0) {
         const validSongs = data.filter(isValidSong);
-        setAllSongs(validSongs);
-        setFilteredSongs(validSongs);
+        if (validSongs.length > 0) {
+          setAllSongs(validSongs);
+          setFilteredSongs(validSongs);
+          setCatalogNotice(null);
+        } else {
+          useFallbackSongs();
+          setCatalogNotice(
+            'Apolo no devolvió canciones utilizables; se muestra un catálogo de ejemplo.'
+          );
+        }
       } else {
         useFallbackSongs();
+        setCatalogNotice(
+          'Apolo no devolvió canciones; se muestra un catálogo de ejemplo.'
+        );
       }
-    } catch {
+    } catch (error) {
+      console.warn('No se pudo leer el catálogo de Apolo:', error);
       useFallbackSongs();
+      setCatalogNotice(
+        'No se pudo leer el catálogo de Apolo; se muestra un catálogo de ejemplo.'
+      );
     } finally {
       setLoading(false);
     }
@@ -171,6 +189,11 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
   const saveToHistoryAndBackend = async (song: Song) => {
     await historyStorage.addSong(song);
 
+    if (username === 'Invitado') {
+      setHistoryNotice('Modo invitado: la canción se guardó solo en este dispositivo.');
+      return;
+    }
+
     try {
       const nowFormatted = new Date().toISOString().split('.')[0];
       const locStr = location ? `${location.city}, ${location.country}` : 'Lima, Perú';
@@ -183,8 +206,12 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
         location: locStr,
       };
       await apoloApi.createHistory(historyEntry);
-    } catch {
-      // Silencioso
+      setHistoryNotice(null);
+    } catch (error) {
+      console.warn('No se pudo registrar la canción en el historial de Apolo:', error);
+      setHistoryNotice(
+        'La canción se guardó localmente, pero Apolo no pudo registrar el historial.'
+      );
     }
   };
 
@@ -196,14 +223,25 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
         const validSimilar = similar.filter(isValidSimilarSong);
         if (validSimilar.length > 0) {
           setSimilarSongs(validSimilar);
+          setRecommendationsNotice(null);
         } else {
           useFallbackSimilarSongs(song);
+          setRecommendationsNotice(
+            'Apolo devolvió recomendaciones inválidas; se muestran sugerencias de ejemplo.'
+          );
         }
       } else {
         useFallbackSimilarSongs(song);
+        setRecommendationsNotice(
+          'Apolo no encontró recomendaciones; se muestran sugerencias de ejemplo.'
+        );
       }
-    } catch {
+    } catch (error) {
+      console.warn('No se pudieron cargar recomendaciones de Apolo:', error);
       useFallbackSimilarSongs(song);
+      setRecommendationsNotice(
+        'No se pudo consultar Apolo; se muestran sugerencias de ejemplo.'
+      );
     } finally {
       Vibration.vibrate(80);
       setLoadingRecommendations(false);
@@ -253,6 +291,7 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
 
   const handleSelectSong = (song: Song) => {
     setIsLocationMode(false);
+    setRecommendationsNotice(null);
     setSelectedSong(song);
     setIsPlayerExpanded(true);
     setPlaybackPosition(0);
@@ -289,6 +328,9 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
     setIsPlayerExpanded(false);
     setIsPlaying(false);
     setIsLocationMode(true);
+    setRecommendationsNotice(
+      'Estas sugerencias por ubicación son locales; Apolo no ofrece un endpoint de tendencias geográficas.'
+    );
     setLoadingRecommendations(true);
 
     setTimeout(() => {
@@ -473,6 +515,9 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
             : 'Selecciona una canción y agita el teléfono para descubrir similares.'}
       </Text>
 
+      {catalogNotice && <Text style={styles.backendNotice}>{catalogNotice}</Text>}
+      {historyNotice && <Text style={styles.backendNotice}>{historyNotice}</Text>}
+
       {selectedSong && (
         <View style={styles.playerCard}>
           <View style={styles.playerArtwork}>
@@ -565,6 +610,9 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
 
       {/* Sección 2: Recomendaciones Similares con Indicador de Carga */}
       <Text style={[styles.sectionTitle, styles.discoveriesTitle]}>{recommendationsLabel}</Text>
+      {recommendationsNotice && (
+        <Text style={styles.backendNotice}>{recommendationsNotice}</Text>
+      )}
 
       {loadingRecommendations ? (
         <View style={styles.recommendationsLoaderContainer}>
@@ -745,6 +793,11 @@ const styles = StyleSheet.create({
     color: '#909090',
     fontSize: 11,
     marginBottom: 12,
+  },
+  backendNotice: {
+    color: '#E8B86D',
+    fontSize: 11,
+    marginBottom: 10,
   },
   playerCard: {
     flexDirection: 'row',
