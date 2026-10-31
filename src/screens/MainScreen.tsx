@@ -21,6 +21,8 @@ import { SongItem, isValidSong, isValidSimilarSong } from '../components/SongIte
 import { LocationBanner } from '../components/LocationBanner';
 import { useLocation } from '../hooks/useLocation';
 import { useShake } from '../hooks/useShake';
+import { formatLocationLabel } from '../services/locationService';
+import { useAuth } from '../context/AuthContext';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Main'>;
 
@@ -32,6 +34,7 @@ const formatPlaybackTime = (seconds: number): string => {
 
 export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
   const username = route.params?.username || 'Invitado';
+  const { backendSyncEnabled } = useAuth();
 
   const [allSongs, setAllSongs] = useState<Song[]>([]);
   const [filteredSongs, setFilteredSongs] = useState<Song[]>([]);
@@ -51,6 +54,7 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
   const { location, loadingLocation, refreshLocation } = useLocation();
   const searchInputRef = useRef<TextInput>(null);
   const isScreenFocused = useIsFocused();
+  const recommendationsRequestId = useRef(0);
   const playbackDurationSeconds = selectedSong?.durationMs
     ? Math.max(1, Math.floor(selectedSong.durationMs / 1000))
     : 210;
@@ -177,8 +181,7 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
 
   const recommendationsLabel = useMemo(() => {
     if (isLocationMode) {
-      const locStr = location ? `${location.city}, ${location.country}` : 'Lima, Perú';
-      return `RECOMENDACIONES PARA: ${locStr.toUpperCase()}`;
+      return `SUGERENCIAS LOCALES: ${formatLocationLabel(location).toUpperCase()}`;
     }
     if (selectedSong) {
       return `RECOMENDACIONES PARA: ${selectedSong.id.songName.toUpperCase()}`;
@@ -188,25 +191,28 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
 
   const saveToHistoryAndBackend = async (song: Song) => {
     await historyStorage.addSong(song);
+    setHistoryNotice(null);
 
-    if (username === 'Invitado') {
-      setHistoryNotice('Modo invitado: la canción se guardó solo en este dispositivo.');
+    if (!backendSyncEnabled || catalogNotice) {
+      const reason = !backendSyncEnabled
+        ? username === 'Invitado'
+          ? 'Modo invitado'
+          : 'Modo local'
+        : 'Catálogo de ejemplo';
+      setHistoryNotice(`${reason}: la canción se guardó solo en este dispositivo.`);
       return;
     }
 
     try {
       const nowFormatted = new Date().toISOString().split('.')[0];
-      const locStr = location ? `${location.city}, ${location.country}` : 'Lima, Perú';
       const historyEntry: ListeningHistory = {
         user: { username },
-        song: song,
+        song,
         playedAt: nowFormatted,
         durationPlayedMs: 0,
-        completed: true,
-        location: locStr,
+        completed: false,
       };
       await apoloApi.createHistory(historyEntry);
-      setHistoryNotice(null);
     } catch (error) {
       console.warn('No se pudo registrar la canción en el historial de Apolo:', error);
       setHistoryNotice(
@@ -216,9 +222,14 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
   };
 
   const fetchSimilarSongs = async (song: Song) => {
+    const requestId = ++recommendationsRequestId.current;
     setLoadingRecommendations(true);
     try {
       const similar = await apoloApi.getSimilarSongs(song.id.songArtist, song.id.songName);
+      if (requestId !== recommendationsRequestId.current) {
+        return;
+      }
+
       if (similar && similar.length > 0) {
         const validSimilar = similar.filter(isValidSimilarSong);
         if (validSimilar.length > 0) {
@@ -237,14 +248,20 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
         );
       }
     } catch (error) {
+      if (requestId !== recommendationsRequestId.current) {
+        return;
+      }
+
       console.warn('No se pudieron cargar recomendaciones de Apolo:', error);
       useFallbackSimilarSongs(song);
       setRecommendationsNotice(
         'No se pudo consultar Apolo; se muestran sugerencias de ejemplo.'
       );
     } finally {
-      Vibration.vibrate(80);
-      setLoadingRecommendations(false);
+      if (requestId === recommendationsRequestId.current) {
+        Vibration.vibrate(80);
+        setLoadingRecommendations(false);
+      }
     }
   };
 
@@ -324,56 +341,51 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
   );
 
   const handleRecommendByLocation = () => {
+    recommendationsRequestId.current += 1;
     setSelectedSong(null);
     setIsPlayerExpanded(false);
     setIsPlaying(false);
     setIsLocationMode(true);
-    setRecommendationsNotice(
-      'Estas sugerencias por ubicación son locales; Apolo no ofrece un endpoint de tendencias geográficas.'
-    );
-    setLoadingRecommendations(true);
-
-    setTimeout(() => {
-      setSimilarSongs([
-        {
-          songName: 'Cariñito',
-          artist: 'Los Hijos del Sol',
-          durationSeconds: 215,
-          genres: ['cumbia'],
-          subgenres: ['cumbia-peruana'],
-          popularity: 98,
-          similarity: 0.98,
-        },
-        {
-          songName: 'Contigo Perú',
-          artist: 'Arturo Zambo Cavero',
-          durationSeconds: 200,
-          genres: ['criollo'],
-          subgenres: ['vals-peruano'],
-          popularity: 96,
-          similarity: 0.95,
-        },
-        {
-          songName: 'A Través del Vaso',
-          artist: 'Grupo 5',
-          durationSeconds: 220,
-          genres: ['cumbia'],
-          subgenres: ['cumbia-norteña'],
-          popularity: 92,
-          similarity: 0.91,
-        },
-        {
-          songName: 'El Cervecero',
-          artist: 'Armonía 10',
-          durationSeconds: 210,
-          genres: ['cumbia'],
-          subgenres: ['cumbia-peruana'],
-          popularity: 90,
-          similarity: 0.89,
-        },
-      ]);
-      setLoadingRecommendations(false);
-    }, 400);
+    setRecommendationsNotice(null);
+    setLoadingRecommendations(false);
+    setSimilarSongs([
+      {
+        songName: 'Cariñito',
+        artist: 'Los Hijos del Sol',
+        durationSeconds: 215,
+        genres: ['cumbia'],
+        subgenres: ['cumbia-peruana'],
+        popularity: 98,
+        similarity: 0.98,
+      },
+      {
+        songName: 'Contigo Perú',
+        artist: 'Arturo Zambo Cavero',
+        durationSeconds: 200,
+        genres: ['criollo'],
+        subgenres: ['vals-peruano'],
+        popularity: 96,
+        similarity: 0.95,
+      },
+      {
+        songName: 'A Través del Vaso',
+        artist: 'Grupo 5',
+        durationSeconds: 220,
+        genres: ['cumbia'],
+        subgenres: ['cumbia-norteña'],
+        popularity: 92,
+        similarity: 0.91,
+      },
+      {
+        songName: 'El Cervecero',
+        artist: 'Armonía 10',
+        durationSeconds: 210,
+        genres: ['cumbia'],
+        subgenres: ['cumbia-peruana'],
+        popularity: 90,
+        similarity: 0.89,
+      },
+    ]);
   };
 
   if (selectedSong && isPlayerExpanded) {
@@ -391,7 +403,7 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
           >
             <Text style={styles.collapseButtonIcon}>⌄</Text>
           </TouchableOpacity>
-          <Text style={styles.fullPlayerEyebrow}>REPRODUCIENDO AHORA</Text>
+          <Text style={styles.fullPlayerEyebrow}>VISTA PREVIA SIMULADA</Text>
           <View style={styles.headerButtonSpacer} />
         </View>
 
@@ -407,6 +419,9 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
           </Text>
           <Text style={styles.fullPlayerArtist} numberOfLines={1}>
             {selectedSong.id.songArtist}
+          </Text>
+          <Text style={styles.playerDisclaimer}>
+            Esta versión no reproduce audio; los controles solo muestran una vista previa.
           </Text>
         </View>
 
@@ -524,6 +539,7 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
             <Text style={styles.playerArtworkIcon}>♫</Text>
           </View>
           <View style={styles.playerContent}>
+            <Text style={styles.playerEyebrow}>VISTA PREVIA · SIN AUDIO</Text>
             <Text style={styles.playerSongName} numberOfLines={1}>
               {selectedSong.id.songName}
             </Text>
@@ -628,7 +644,7 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <Text style={styles.emptyText}>
-              Selecciona una canción del catálogo para ver recomendaciones personalizadas por Machine Learning.
+              Selecciona una canción del catálogo para consultar recomendaciones en Apolo.
             </Text>
           }
         />
@@ -709,6 +725,11 @@ const styles = StyleSheet.create({
   fullPlayerArtist: {
     color: '#B3B3B3',
     fontSize: 16,
+    marginTop: 8,
+  },
+  playerDisclaimer: {
+    color: '#909090',
+    fontSize: 12,
     marginTop: 8,
   },
   fullPlayerProgress: {

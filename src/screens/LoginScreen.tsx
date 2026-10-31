@@ -21,7 +21,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 export const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const [inputUsername, setInputUsername] = useState('');
   const [loading, setLoading] = useState(false);
-  const { setUsername } = useAuth();
+  const { setUsername, setBackendSyncEnabled } = useAuth();
 
   const handleLogin = async () => {
     const trimmedUser = inputUsername.trim();
@@ -40,11 +40,12 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
       }
 
       setUsername(trimmedUser);
+      setBackendSyncEnabled(true);
       navigation.replace('Main', { username: trimmedUser });
     } catch (error) {
       console.warn('No se pudo sincronizar el usuario con Apolo:', error);
       Alert.alert(
-        'Sin conexión con Apolo',
+        'No se pudo sincronizar con Apolo',
         'No se pudo preparar el usuario en el backend. Puedes continuar en modo local.',
         [
           { text: 'Cancelar', style: 'cancel' },
@@ -52,6 +53,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
             text: 'Continuar sin sincronizar',
             onPress: () => {
               setUsername(trimmedUser);
+              setBackendSyncEnabled(false);
               navigation.replace('Main', { username: trimmedUser });
             },
           },
@@ -64,6 +66,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
 
   const handleGuest = () => {
     setUsername('Invitado');
+    setBackendSyncEnabled(false);
     navigation.replace('Main', { username: 'Invitado' });
   };
 
@@ -81,8 +84,10 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
           />
         </View>
 
-        <Text style={styles.title}>Prometeus</Text>
-        <Text style={styles.subtitle}>Millones de canciones en Prometeus.</Text>
+        <Text style={styles.title}>Prometeo</Text>
+        <Text style={styles.subtitle}>
+          Usa tu nombre para sincronizar tus selecciones con Prometeo.
+        </Text>
 
         <TextInput
           style={styles.input}
@@ -104,7 +109,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
           {loading ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={styles.loginButtonText}>ENTRAR</Text>
+            <Text style={styles.loginButtonText}>CONTINUAR</Text>
           )}
         </TouchableOpacity>
 

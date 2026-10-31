@@ -20,7 +20,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'History'>;
 
 export const HistoryScreen: React.FC<Props> = ({ navigation }) => {
   const [historySongs, setHistorySongs] = useState<Song[]>([]);
-  const { username } = useAuth();
+  const { username, backendSyncEnabled } = useAuth();
 
   useEffect(() => {
     loadHistory();
@@ -33,17 +33,6 @@ export const HistoryScreen: React.FC<Props> = ({ navigation }) => {
 
   const deleteSong = async (song: Song) => {
     try {
-      const [userHistory, songHistory] = await Promise.all([
-        apoloApi.getUserHistory(username),
-        apoloApi.getSongHistory(song.id.songArtist, song.id.songName),
-      ]);
-      const songHistoryIds = new Set(songHistory.map((record) => record.historyId));
-      const matchingRecords = userHistory.filter((record) =>
-        songHistoryIds.has(record.historyId)
-      );
-      await Promise.all(
-        matchingRecords.map((record) => apoloApi.deleteHistory(record.historyId))
-      );
       await historyStorage.removeSong(song);
       setHistorySongs((current) =>
         current.filter(
@@ -53,8 +42,31 @@ export const HistoryScreen: React.FC<Props> = ({ navigation }) => {
         )
       );
     } catch (error) {
-      console.error('Error al eliminar canción del historial:', error);
-      Alert.alert('No se pudo eliminar', 'Inténtalo de nuevo más tarde.' + error);
+      console.error('Error al eliminar canción del historial local:', error);
+      Alert.alert('No se pudo eliminar', 'No se pudo actualizar el historial del dispositivo.');
+      return;
+    }
+
+    if (backendSyncEnabled) {
+      try {
+        const [userHistory, songHistory] = await Promise.all([
+          apoloApi.getUserHistory(username),
+          apoloApi.getSongHistory(song.id.songArtist, song.id.songName),
+        ]);
+        const songHistoryIds = new Set(songHistory.map((record) => record.historyId));
+        const matchingRecords = userHistory.filter((record) =>
+          songHistoryIds.has(record.historyId)
+        );
+        await Promise.all(
+          matchingRecords.map((record) => apoloApi.deleteHistory(record.historyId))
+        );
+      } catch (error) {
+        console.error('No se pudo eliminar el registro remoto del historial:', error);
+        Alert.alert(
+          'Eliminado del dispositivo',
+          'No se pudo confirmar la eliminación en Apolo. El registro remoto podría seguir guardado.'
+        );
+      }
     }
   };
 
@@ -89,6 +101,10 @@ export const HistoryScreen: React.FC<Props> = ({ navigation }) => {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Historial</Text>
       </View>
+
+      <Text style={styles.historyNotice}>
+        Canciones guardadas en este dispositivo.
+      </Text>
 
       <FlatList
         data={historySongs}
@@ -146,6 +162,11 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: 'bold',
     marginLeft: 16,
+  },
+  historyNotice: {
+    color: '#909090',
+    fontSize: 12,
+    marginBottom: 16,
   },
   emptyContainer: {
     alignItems: 'center',

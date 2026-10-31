@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { LocationData } from '../services/locationService';
+import { formatLocationLabel, LocationData } from '../services/locationService';
 
 interface LocationBannerProps {
   location: LocationData | null;
@@ -15,16 +15,16 @@ export const LocationBanner: React.FC<LocationBannerProps> = ({
   onRefresh,
   onRecommendByLocation,
 }) => {
-  const locationString = location ? `${location.city}, ${location.country}` : 'Lima, Perú';
+  const locationString = formatLocationLabel(location);
 
   return (
     <View style={styles.card}>
       <View style={styles.headerRow}>
         <View style={styles.badge}>
-          <Text style={styles.badgeText}>UBICACIÓN GEOGRÁFICA</Text>
+          <Text style={styles.badgeText}>UBICACIÓN DEL DISPOSITIVO</Text>
         </View>
         <TouchableOpacity onPress={onRefresh} style={styles.refreshButton} activeOpacity={0.7}>
-          <Text style={styles.refreshText}>Actualizar GPS</Text>
+          <Text style={styles.refreshText}>Actualizar ubicación</Text>
         </TouchableOpacity>
       </View>
 
@@ -33,9 +33,12 @@ export const LocationBanner: React.FC<LocationBannerProps> = ({
       ) : (
         <View style={styles.contentRow}>
           <View style={styles.textContent}>
-            <Text style={styles.locationTitle}>Recomendar según ubicación</Text>
+            <Text style={styles.locationTitle}>Tu ubicación</Text>
             <Text style={styles.locationSubtitle}>
-              Tendencias populares en {locationString}
+              {locationString}
+            </Text>
+            <Text style={styles.locationDisclaimer}>
+              Las sugerencias por zona son ejemplos locales, no tendencias consultadas a Apolo.
             </Text>
           </View>
 
@@ -45,7 +48,7 @@ export const LocationBanner: React.FC<LocationBannerProps> = ({
               onPress={onRecommendByLocation}
               activeOpacity={0.8}
             >
-              <Text style={styles.actionBtnText}>Ver Zona</Text>
+              <Text style={styles.actionBtnText}>Ver sugerencias</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -111,6 +114,11 @@ const styles = StyleSheet.create({
     color: '#909090',
     fontSize: 12,
     marginTop: 2,
+  },
+  locationDisclaimer: {
+    color: '#707070',
+    fontSize: 10,
+    marginTop: 4,
   },
   actionBtn: {
     backgroundColor: '#1DB954',

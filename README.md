@@ -1,6 +1,6 @@
 # Prometeo (Cliente React Native)
 
-**Prometeo** es una aplicación móvil cliente de recomendación musical inteligente desarrollada con **React Native** y **TypeScript**. Se conecta a un servicio backend REST en **Spring Boot (Java)** para ofrecer autenticación de usuarios, catálogo musical, recomendación de canciones similares mediante **Machine Learning**, geolocalización de tendencias locales e historial persistente de reproducción.
+**Prometeo** es una aplicación móvil cliente de recomendación musical desarrollada con **React Native** y **TypeScript**. Se conecta a un servicio REST en **Spring Boot (Java)** para identificar usuarios, consultar el catálogo y las recomendaciones similares, y registrar selecciones en el historial.
 
 ---
 
@@ -11,6 +11,7 @@
 - **Navegación**: React Navigation (Native Stack)
 - **Gestión de Estado**: React Context API (`AuthContext`)
 - **Custom Hooks**: `useLocation` para geolocalización, `useAuth` para sesión
+- **GPS nativo**: `@react-native-community/geolocation` y permisos de ubicación Android
 - **Sensores**: acelerómetro para descubrir canciones similares al agitar el dispositivo
 - **Respuesta háptica**: vibración al cargar recomendaciones
 - **Persistencia Local**: `@react-native-async-storage/async-storage`
@@ -44,7 +45,7 @@ prometeo/
     ├── api/
     │   └── apoloApi.ts         # Cliente REST API (comunicación con Spring Boot)
     ├── components/
-    │   ├── LocationBanner.tsx  # Banner visual de tendencias según ubicación
+    │   ├── LocationBanner.tsx  # Ubicación detectada y sugerencias locales
     │   └── SongItem.tsx        # Tarjeta reutilizable para canciones
     ├── context/
     │   └── AuthContext.tsx     # Contexto global de sesión de usuario
@@ -54,12 +55,12 @@ prometeo/
     ├── navigation/
     │   └── AppNavigator.tsx    # Configuración de rutas (Stack Navigator)
     ├── screens/
-    │   ├── LoginScreen.tsx     # Inicio de sesión y registro automático
+    │   ├── LoginScreen.tsx     # Identificación y registro automático
     │   ├── MainScreen.tsx      # Exploración, catálogo y recomendaciones ML
     │   └── HistoryScreen.tsx   # Historial local persistente
     ├── services/
     │   ├── historyStorage.ts   # Persistencia local con AsyncStorage
-    │   └── locationService.ts  # Servicio de geolocalización GPS / IP
+    │   └── locationService.ts  # Geolocalización nativa GPS / IP
     └── types/
         └── index.ts            # Interfaces y tipos de TypeScript
 ```
@@ -135,19 +136,22 @@ La aplicación interactúa con los siguientes endpoints del backend Spring Boot 
 | `POST` | `/api/users` | Registra un nuevo usuario si no existía previamente. |
 | `GET` | `/api/songs` | Obtiene hasta 100 canciones en la rama `main` actual. |
 | `GET` | `/api/songs/similar?artist={artist}&songName={songName}` | Obtiene recomendaciones de canciones similares procesadas por el modelo de Machine Learning. |
-| `POST` | `/api/listening-history` | Registra de forma persistente cada reproducción de canción. |
+| `POST` | `/api/listening-history` | Registra la selección como incompleta (`completed: false`); el reproductor actual no reproduce audio real. |
 | `GET` | `/api/listening-history/user/{username}` | Obtiene los IDs del historial de un usuario. |
 | `GET` | `/api/listening-history/song/{artist}/{songName}` | Obtiene los IDs del historial de una canción para cruzarlos con los del usuario. |
 | `DELETE` | `/api/listening-history/{id}` | Elimina un registro del historial. |
 
-Si el catálogo no se puede leer, Prometeo avisa y muestra canciones de ejemplo. Las
-recomendaciones por ubicación también son locales: Apolo no expone un endpoint de tendencias
-geográficas. En modo invitado, el historial se guarda solo en el dispositivo; para guardar en
-Apolo hay que iniciar sesión con un usuario sincronizado.
+Si el catálogo no se puede leer, Prometeo avisa y muestra canciones de ejemplo; esas canciones
+se guardan únicamente en el dispositivo. Las recomendaciones por ubicación también son locales:
+Apolo no expone un endpoint de tendencias geográficas. La interfaz identifica si la ubicación
+proviene del GPS, de una estimación por IP o de un valor referencial. El historial visible se
+guarda en el dispositivo; con una sesión sincronizada, las selecciones disponibles también se
+envían a Apolo.
 
 La respuesta del endpoint de canciones en `main` debe ser JSON válido para cargar el catálogo
 real. Si la serialización de las relaciones de las entidades falla, el frontend no puede
-reconstruir de forma fiable la lista y conserva el catálogo local de ejemplo.
+reconstruir de forma fiable la lista y conserva el catálogo local de ejemplo. El reproductor
+es una vista simulada: sus controles y progreso no reproducen ni descargan audio.
 
 ## 💡 Nota de Configuración de IP
 

@@ -1,11 +1,32 @@
 import { PermissionsAndroid, Platform } from 'react-native';
+import Geolocation, {
+  type GeolocationResponse,
+} from '@react-native-community/geolocation';
 
 export interface LocationData {
   city: string;
   country: string;
   latitude?: number;
   longitude?: number;
+  source: 'gps' | 'ip' | 'fallback';
 }
+
+export const formatLocationLabel = (location: LocationData | null): string => {
+  if (!location) {
+    return 'Ubicación no disponible';
+  }
+
+  if (location.source === 'gps') {
+    if (location.latitude === undefined || location.longitude === undefined) {
+      return 'GPS';
+    }
+
+    return `GPS (${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)})`;
+  }
+
+  const place = `${location.city}, ${location.country}`;
+  return location.source === 'ip' ? `${place} (estimada por IP)` : `${place} (referencial)`;
+};
 
 export const locationService = {
   async requestPermission(): Promise<boolean> {
@@ -16,7 +37,7 @@ export const locationService = {
         PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
         {
           title: 'Permiso de Ubicación',
-          message: 'Prometeo utiliza tu ubicación para mostrar tendencias musicales de tu zona.',
+          message: 'Prometeo utiliza tu ubicación para mostrar sugerencias de ejemplo por zona.',
           buttonPositive: 'Aceptar',
           buttonNegative: 'Cancelar',
         }
@@ -32,9 +53,13 @@ export const locationService = {
     const hasPermission = await this.requestPermission();
 
     try {
-      if (hasPermission && typeof navigator !== 'undefined' && navigator.geolocation) {
-        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, {
+      if (hasPermission) {
+        Geolocation.setRNConfiguration({
+          skipPermissionRequests: true,
+          locationProvider: 'auto',
+        });
+        const position = await new Promise<GeolocationResponse>((resolve, reject) => {
+          Geolocation.getCurrentPosition(resolve, reject, {
             enableHighAccuracy: true,
             timeout: 5000,
             maximumAge: 10000,
@@ -43,29 +68,42 @@ export const locationService = {
 
         const { latitude, longitude } = position.coords;
         return {
-          city: 'Lima',
-          country: 'Perú',
+          city: '',
+          country: '',
           latitude,
           longitude,
+          source: 'gps',
         };
       }
-    } catch {
-      // Fallback a servicio de geolocalización IP
+    } catch (error) {
+      console.warn('No se pudo obtener la ubicación GPS:', error);
     }
 
     try {
       const response = await fetch('http://ip-api.com/json');
       if (response.ok) {
-        const data = await response.json();
-        return {
-          city: data.city || 'Lima',
-          country: data.country || 'Perú',
-          latitude: data.lat,
-          longitude: data.lon,
-        };
+        const data: {
+          status?: string;
+          city?: string;
+          country?: string;
+          lat?: number;
+          lon?: number;
+        } = await response.json();
+
+        if (data.status === 'success' && data.city && data.country) {
+          return {
+            city: data.city,
+            country: data.country,
+            latitude: data.lat,
+            longitude: data.lon,
+            source: 'ip',
+          };
+        }
+      } else {
+        console.warn(`La ubicación por IP respondió con HTTP ${response.status}.`);
       }
-    } catch {
-      // Fallback predeterminado
+    } catch (error) {
+      console.warn('No se pudo obtener la ubicación aproximada por IP:', error);
     }
 
     return {
@@ -73,6 +111,7 @@ export const locationService = {
       country: 'Perú',
       latitude: -12.0464,
       longitude: -77.0428,
+      source: 'fallback',
     };
   },
 };
