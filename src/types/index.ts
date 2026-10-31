@@ -43,7 +43,7 @@ export interface ListeningHistory {
 }
 
 export interface ListeningHistoryRecord extends ListeningHistory {
-  id: number;
+  historyId: number;
 }
 
 export type RootStackParamList = {
