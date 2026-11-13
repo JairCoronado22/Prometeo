@@ -27,6 +27,10 @@ export const LocationBanner: React.FC<LocationBannerProps> = ({
           <Text style={styles.refreshText}>Actualizar ubicación</Text>
         </TouchableOpacity>
       </View>
+      <Text style={styles.locationDisclaimer}>
+        Se usa para sugerencias locales y no se envía a Apolo. Puedes elegir ubicación aproximada
+        o precisa en el permiso de Android.
+      </Text>
 
       {loading ? (
         <ActivityIndicator size="small" color="#1DB954" style={styles.loader} />
@@ -37,9 +41,11 @@ export const LocationBanner: React.FC<LocationBannerProps> = ({
             <Text style={styles.locationSubtitle}>
               {locationString}
             </Text>
-            <Text style={styles.locationDisclaimer}>
-              Las sugerencias por zona son ejemplos locales, no tendencias consultadas a Apolo.
-            </Text>
+            {location?.source === 'gps' && location.precision === 'approximate' && (
+              <Text style={styles.precisionNotice}>
+                Ubicación aproximada. Toca “Actualizar ubicación” para solicitar precisión.
+              </Text>
+            )}
           </View>
 
           {onRecommendByLocation && (
@@ -117,6 +123,11 @@ const styles = StyleSheet.create({
   },
   locationDisclaimer: {
     color: '#707070',
+    fontSize: 10,
+    marginTop: 4,
+  },
+  precisionNotice: {
+    color: '#E8B923',
     fontSize: 10,
     marginTop: 4,
   },

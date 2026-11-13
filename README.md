@@ -12,6 +12,8 @@
 - **Gestión de Estado**: React Context API (`AuthContext`)
 - **Custom Hooks**: `useLocation` para geolocalización, `useAuth` para sesión
 - **GPS nativo**: `@react-native-community/geolocation` y permisos de ubicación Android
+- **Permisos de ubicación**: solicita juntos ubicación precisa y aproximada; respeta la opción elegida por Android
+- **Permiso de notificaciones**: solicitud en Android 13 o superior (`POST_NOTIFICATIONS`)
 - **Sensores**: acelerómetro para descubrir canciones similares al agitar el dispositivo
 - **Respuesta háptica**: vibración al cargar recomendaciones
 - **Persistencia Local**: `@react-native-async-storage/async-storage`
@@ -46,6 +48,7 @@ prometeo/
     │   └── apoloApi.ts         # Cliente REST API (comunicación con Spring Boot)
     ├── components/
     │   ├── LocationBanner.tsx  # Ubicación detectada y sugerencias locales
+    │   ├── NotificationPermissionCard.tsx # Permiso Android para notificaciones
     │   └── SongItem.tsx        # Tarjeta reutilizable para canciones
     ├── context/
     │   └── AuthContext.tsx     # Contexto global de sesión de usuario
@@ -60,7 +63,8 @@ prometeo/
     │   └── HistoryScreen.tsx   # Historial local persistente
     ├── services/
     │   ├── historyStorage.ts   # Persistencia local con AsyncStorage
-    │   └── locationService.ts  # Geolocalización nativa GPS / IP
+    │   ├── locationService.ts  # Geolocalización nativa GPS / IP
+    │   └── notificationPermissionService.ts # Permiso de notificaciones Android
     └── types/
         └── index.ts            # Interfaces y tipos de TypeScript
 ```
@@ -144,6 +148,17 @@ consultar recomendaciones similares. La app reutiliza `GET /api/songs/similar` s
 en el backend. El acelerómetro no requiere permiso de ejecución; Android declara el permiso
 `VIBRATE` para la respuesta háptica. La escucha del sensor se detiene al salir de la pantalla
 o abrir el reproductor.
+
+En Android, Prometeo solicita juntos los permisos de ubicación precisa (`ACCESS_FINE_LOCATION`)
+y aproximada (`ACCESS_COARSE_LOCATION`). Si el usuario elige ubicación aproximada, la aplicación
+la usa con menor precisión y permite volver a solicitar precisión al actualizar la ubicación.
+La ubicación se utiliza para sugerencias locales y no se envía a Apolo.
+
+En Android 13 o superior, la pantalla principal permite solicitar `POST_NOTIFICATIONS`. Esto
+habilita el permiso del sistema, pero **las notificaciones push remotas aún no están integradas**:
+Apolo en `main` no registra tokens FCM ni envía mensajes, y el frontend no incluye configuración
+Firebase. Para completar push se requiere acordar e implementar el registro/rotación de tokens y
+el envío de mensajes en el backend.
 
 La aplicación interactúa con los siguientes endpoints del backend Spring Boot (`src/api/apoloApi.ts`):
 

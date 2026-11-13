@@ -9,6 +9,12 @@ export interface LocationData {
   latitude?: number;
   longitude?: number;
   source: 'gps' | 'ip' | 'fallback';
+  precision?: 'precise' | 'approximate';
+}
+
+export interface LocationPermission {
+  precise: boolean;
+  approximate: boolean;
 }
 
 export const formatLocationLabel = (location: LocationData | null): string => {
@@ -17,11 +23,13 @@ export const formatLocationLabel = (location: LocationData | null): string => {
   }
 
   if (location.source === 'gps') {
+    const accuracyLabel =
+      location.precision === 'approximate' ? 'GPS aproximado' : 'GPS preciso';
     if (location.latitude === undefined || location.longitude === undefined) {
-      return 'GPS';
+      return accuracyLabel;
     }
 
-    return `GPS (${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)})`;
+    return `${accuracyLabel} (${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)})`;
   }
 
   const place = `${location.city}, ${location.country}`;
@@ -29,43 +37,45 @@ export const formatLocationLabel = (location: LocationData | null): string => {
 };
 
 export const locationService = {
-  async requestPermission(): Promise<boolean> {
-    if (Platform.OS !== 'android') return true;
+  async requestPermission(): Promise<LocationPermission> {
+    if (Platform.OS !== 'android') {
+      return { precise: true, approximate: true };
+    }
 
     try {
-      const granted = await PermissionsAndroid.request(
-        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-        {
-          title: 'Permiso de Ubicación',
-          message: 'Prometeo utiliza tu ubicación para mostrar sugerencias de ejemplo por zona.',
-          buttonPositive: 'Aceptar',
-          buttonNegative: 'Cancelar',
-        }
-      );
-      return granted === PermissionsAndroid.RESULTS.GRANTED;
-    } catch (err) {
-      console.warn('Error al solicitar permiso de ubicación:', err);
-      return false;
+      const permissions = PermissionsAndroid.PERMISSIONS;
+      const results = await PermissionsAndroid.requestMultiple([
+        permissions.ACCESS_FINE_LOCATION,
+        permissions.ACCESS_COARSE_LOCATION,
+      ]);
+      return {
+        precise: results[permissions.ACCESS_FINE_LOCATION] === PermissionsAndroid.RESULTS.GRANTED,
+        approximate:
+          results[permissions.ACCESS_COARSE_LOCATION] === PermissionsAndroid.RESULTS.GRANTED,
+      };
+    } catch (error) {
+      console.warn('Error al solicitar permisos de ubicación precisa y aproximada:', error);
+      return { precise: false, approximate: false };
     }
   },
 
   async getCurrentLocation(): Promise<LocationData> {
-    let hasPermission = false;
+    let permission: LocationPermission = { precise: false, approximate: false };
     try {
-      hasPermission = await this.requestPermission();
+      permission = await this.requestPermission();
     } catch (error) {
       console.warn('No se pudo solicitar el permiso de ubicación:', error);
     }
 
     try {
-      if (hasPermission) {
+      if (permission.precise || permission.approximate) {
         Geolocation.setRNConfiguration({
           skipPermissionRequests: true,
           locationProvider: 'auto',
         });
         const position = await new Promise<GeolocationResponse>((resolve, reject) => {
           Geolocation.getCurrentPosition(resolve, reject, {
-            enableHighAccuracy: true,
+            enableHighAccuracy: permission.precise,
             timeout: 5000,
             maximumAge: 10000,
           });
@@ -78,6 +88,7 @@ export const locationService = {
           latitude,
           longitude,
           source: 'gps',
+          precision: permission.precise ? 'precise' : 'approximate',
         };
       }
     } catch (error) {

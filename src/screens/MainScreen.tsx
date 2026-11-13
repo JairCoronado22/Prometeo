@@ -23,6 +23,7 @@ import { useLocation } from '../hooks/useLocation';
 import { useShake } from '../hooks/useShake';
 import { formatLocationLabel } from '../services/locationService';
 import { useAuth } from '../context/AuthContext';
+import { NotificationPermissionCard } from '../components/NotificationPermissionCard';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Main'>;
 
@@ -516,6 +517,7 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
         onRefresh={refreshLocation}
         onRecommendByLocation={handleRecommendByLocation}
       />
+      <NotificationPermissionCard />
 
       {/* Barra de Búsqueda con Filtrado en Tiempo Real */}
       <View style={styles.searchRow}>
