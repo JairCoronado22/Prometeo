@@ -105,10 +105,10 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
         );
       }
     } catch (error) {
-      console.warn('No se pudo leer el catálogo de Apolo:', error);
+      console.log('No se pudo leer el catálogo de Apolo, usando fallback:', error);
       useFallbackSongs();
       setCatalogNotice(
-        'No se pudo leer el catálogo de Apolo; se muestra un catálogo de ejemplo.'
+        'No se pudo conectar a Apolo; se muestra un catálogo de ejemplo.'
       );
     } finally {
       setLoading(false);
@@ -229,7 +229,7 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
         setHistoryNotice('La selección se envió a Apolo, pero no se guardó en el dispositivo.');
       }
     } catch (error) {
-      console.warn('No se pudo registrar la canción en el historial de Apolo:', error);
+      console.log('No se pudo registrar la canción en el historial de Apolo:', error);
       setHistoryNotice(
         savedLocally
           ? 'La canción se guardó localmente, pero Apolo no pudo registrar el historial.'
@@ -270,7 +270,7 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
         return;
       }
 
-      console.warn('No se pudieron cargar recomendaciones de Apolo:', error);
+      console.log('No se pudieron cargar recomendaciones de Apolo, usando fallback:', error);
       useFallbackSimilarSongs(song);
       setRecommendationsNotice(
         'No se pudo consultar Apolo; se muestran sugerencias de ejemplo.'

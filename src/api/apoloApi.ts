@@ -6,7 +6,12 @@ import {
   ListeningHistoryRecord,
 } from '../types';
 
-const BASE_URLS = ['http://localhost:8080'];
+const BASE_URLS = [
+  'http://localhost:8080',
+  'http://10.0.2.2:8080',
+  'http://192.168.0.102:8080',
+  'http://127.0.0.1:8080',
+];
 
 async function fetchWithFallback(endpoint: string, options?: RequestInit): Promise<Response> {
   let lastError: any = null;

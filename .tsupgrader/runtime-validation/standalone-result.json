@@ -1,0 +1,118 @@
+{
+  "planHash": "772629685124200b28c4e9a298510809c2879fcbffb8554f7699945f6c50c85d",
+  "phase": "standalone",
+  "recordedAtUtc": "2026-11-13T00:07:54.6185333Z",
+  "retryCount": 1,
+  "resetBaseline": false,
+  "complete": true,
+  "result": {
+    "setupSucceeded": true,
+    "setupDurationMs": 30184,
+    "setupFailureOutput": null,
+    "assertions": [
+      {
+        "name": "typescript-no-emit",
+        "kind": "process",
+        "verificationMethod": "exit-code",
+        "passed": true,
+        "timedOut": false,
+        "skipped": false,
+        "skippedReason": null,
+        "exitCode": 0,
+        "outputSample": "",
+        "durationMs": 7904
+      },
+      {
+        "name": "android-javascript-bundle",
+        "kind": "process",
+        "verificationMethod": "exit-code",
+        "passed": true,
+        "timedOut": false,
+        "skipped": false,
+        "skippedReason": null,
+        "exitCode": 0,
+        "outputSample": "                Welcome to Metro v0.80.12\r\n              Fast - Scalable - Integrated\r\n\r\n\r\ninfo Writing bundle output to: .tsupgrader\\runtime-validation\\prometeo.bundle\r\ninfo Done writing bundle output\r\nwarn Assets destination folder is not set, skipping...\r\n",
+        "durationMs": 15373
+      },
+      {
+        "name": "tests-pass",
+        "kind": "process",
+        "verificationMethod": "test-results",
+        "passed": true,
+        "timedOut": false,
+        "skipped": false,
+        "skippedReason": null,
+        "exitCode": 0,
+        "outputSample": "\r\n\u003E prometeo-rn@1.0.0 test\r\n\u003E vitest run\r\n\r\n\r\n\u001B[1m\u001B[7m\u001B[36m RUN \u001B[39m\u001B[27m\u001B[22m \u001B[36mv2.1.9 \u001B[39m\u001B[90mC:/Users/artik/AndroidStudioProjects/react-native-songfinder\u001B[39m\r\n\r\n \u001B[32m\u2713\u001B[39m tests/historyStorage.test.ts \u001B[2m(\u001B[22m\u001B[2m3 tests\u001B[22m\u001B[2m)\u001B[22m\u001B[90m 9\u001B[2mms\u001B[22m\u001B[39m\r\n \u001B[32m\u2713\u001B[39m tests/apoloApi.test.ts \u001B[2m(\u001B[22m\u001B[2m3 tests\u001B[22m\u001B[2m)\u001B[22m\u001B[90m 19\u001B[2mms\u001B[22m\u001B[39m\r\n \u001B[32m\u2713\u001B[39m tests/permissionServices.test.ts \u001B[2m(\u001B[22m\u001B[2m4 tests\u001B[22m\u001B[2m)\u001B[22m\u001B[90m 10\u001B[2mms\u001B[22m\u001B[39m\r\n\r\n\u001B[2m Test Files \u001B[22m \u001B[1m\u001B[32m3 passed\u001B[39m\u001B[22m\u001B[90m (3)\u001B[39m\r\n\u001B[2m      Tests \u001B[22m \u001B[1m\u001B[32m10 passed\u001B[39m\u001B[22m\u001B[90m (10)\u001B[39m\r\n\u001B[2m   Start at \u001B[22m 19:07:53\r\n\u001B[2m   Duration \u001B[22m 966ms\u001B[2m (transform 358ms, setup 0ms, collect 484ms, tests 39ms, environment 1ms, prepare 927ms)\u001B[22m\r\n\r\n",
+        "durationMs": 2657,
+        "testResults": {
+          "testFramework": "vitest",
+          "runnerDetectedFrom": "package_json",
+          "testsTotal": 10,
+          "testsPassed": 10,
+          "testsFailed": 0,
+          "testsSkipped": 0,
+          "parseFailed": false
+        }
+      }
+    ],
+    "executions": [
+      {
+        "source": "setup[0]",
+        "resolvedExecutable": "C:\\Program Files\\nodejs\\npm.CMD",
+        "args": [
+          "ci"
+        ],
+        "cwd": "C:\\Users\\artik\\AndroidStudioProjects\\react-native-songfinder",
+        "env": {},
+        "prependPath": [],
+        "platform": "win32"
+      },
+      {
+        "source": "typescript-no-emit",
+        "resolvedExecutable": "C:\\Program Files\\nodejs\\npx.CMD",
+        "args": [
+          "tsc",
+          "--noEmit",
+          "--pretty",
+          "false"
+        ],
+        "cwd": "C:\\Users\\artik\\AndroidStudioProjects\\react-native-songfinder",
+        "env": {},
+        "prependPath": [],
+        "platform": "win32"
+      },
+      {
+        "source": "android-javascript-bundle",
+        "resolvedExecutable": "C:\\Program Files\\nodejs\\npx.CMD",
+        "args": [
+          "react-native",
+          "bundle",
+          "--platform",
+          "android",
+          "--dev",
+          "false",
+          "--entry-file",
+          "index.js",
+          "--bundle-output",
+          ".tsupgrader\\runtime-validation\\prometeo.bundle"
+        ],
+        "cwd": "C:\\Users\\artik\\AndroidStudioProjects\\react-native-songfinder",
+        "env": {},
+        "prependPath": [],
+        "platform": "win32"
+      },
+      {
+        "source": "tests-pass",
+        "resolvedExecutable": "C:\\Program Files\\nodejs\\npm.CMD",
+        "args": [
+          "test"
+        ],
+        "cwd": "C:\\Users\\artik\\AndroidStudioProjects\\react-native-songfinder",
+        "env": {},
+        "prependPath": [],
+        "platform": "win32"
+      }
+    ]
+  }
+}

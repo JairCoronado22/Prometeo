@@ -5,9 +5,12 @@ import { localNotificationService } from './src/services/localNotificationServic
 
 export default function App() {
   useEffect(() => {
-    // Inicializar notificaciones locales al arrancar la app
-    localNotificationService.configureLocalNotifications();
-    localNotificationService.createNotificationChannel();
+    try {
+      localNotificationService.configureLocalNotifications();
+      localNotificationService.createNotificationChannel();
+    } catch (e) {
+      console.warn('[App] Error al inicializar notificaciones:', e);
+    }
   }, []);
 
   return (

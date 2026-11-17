@@ -54,7 +54,7 @@ export const locationService = {
           results[permissions.ACCESS_COARSE_LOCATION] === PermissionsAndroid.RESULTS.GRANTED,
       };
     } catch (error) {
-      console.warn('Error al solicitar permisos de ubicación precisa y aproximada:', error);
+      console.log('[LocationService] Solicitud de permisos:', error);
       return { precise: false, approximate: false };
     }
   },
@@ -64,7 +64,7 @@ export const locationService = {
     try {
       permission = await this.requestPermission();
     } catch (error) {
-      console.warn('No se pudo solicitar el permiso de ubicación:', error);
+      console.log('[LocationService] Permiso omitido:', error);
     }
 
     try {
@@ -76,7 +76,7 @@ export const locationService = {
         const position = await new Promise<GeolocationResponse>((resolve, reject) => {
           Geolocation.getCurrentPosition(resolve, reject, {
             enableHighAccuracy: permission.precise,
-            timeout: 5000,
+            timeout: 4000,
             maximumAge: 10000,
           });
         });
@@ -92,7 +92,7 @@ export const locationService = {
         };
       }
     } catch (error) {
-      console.warn('No se pudo obtener la ubicación GPS:', error);
+      console.log('[LocationService] GPS no disponible o tiempo agotado, usando IP fallback:', error);
     }
 
     try {
@@ -115,11 +115,9 @@ export const locationService = {
             source: 'ip',
           };
         }
-      } else {
-        console.warn(`La ubicación por IP respondió con HTTP ${response.status}.`);
       }
     } catch (error) {
-      console.warn('No se pudo obtener la ubicación aproximada por IP:', error);
+      console.log('[LocationService] Fallback IP no disponible:', error);
     }
 
     return {
