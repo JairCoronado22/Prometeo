@@ -111,4 +111,41 @@ export const apoloApi = {
   async deleteHistory(id: number): Promise<void> {
     await fetchWithFallback(`/api/listening-history/${id}`, { method: 'DELETE' });
   },
+
+  // --- Notificaciones Push ---
+
+  async registerDeviceToken(token: string, userUsername: string, platform: string): Promise<any> {
+    const response = await fetchWithFallback('/api/notifications/register-token', {
+      method: 'POST',
+      body: JSON.stringify({ token, userUsername, platform }),
+    });
+    return response.json();
+  },
+
+  async unregisterDeviceToken(token: string): Promise<void> {
+    await fetchWithFallback('/api/notifications/unregister-token', {
+      method: 'DELETE',
+      body: JSON.stringify({ token }),
+    });
+  },
+
+  async sendTestNotification(userUsername: string): Promise<string> {
+    const response = await fetchWithFallback('/api/notifications/send-test', {
+      method: 'POST',
+      body: JSON.stringify({ userUsername }),
+    });
+    return response.text();
+  },
+
+  async sendSongNotification(
+    userUsername: string,
+    songTitle: string,
+    artist: string
+  ): Promise<string> {
+    const response = await fetchWithFallback('/api/notifications/send-song', {
+      method: 'POST',
+      body: JSON.stringify({ userUsername, songTitle, artist }),
+    });
+    return response.text();
+  },
 };
