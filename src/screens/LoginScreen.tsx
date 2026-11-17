@@ -1,0 +1,193 @@
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Image,
+  ActivityIndicator,
+  Alert,
+  SafeAreaView,
+  StatusBar,
+} from 'react-native';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../types';
+import { apoloApi } from '../api/apoloApi';
+import { useAuth } from '../context/AuthContext';
+
+type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
+
+export const LoginScreen: React.FC<Props> = ({ navigation }) => {
+  const [inputUsername, setInputUsername] = useState('');
+  const [loading, setLoading] = useState(false);
+  const { setUsername, setBackendSyncEnabled } = useAuth();
+
+  const handleLogin = async () => {
+    const trimmedUser = inputUsername.trim();
+    if (!trimmedUser) {
+      Alert.alert('Atención', 'Ingresa un usuario');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      try {
+        await apoloApi.getUser(trimmedUser);
+      } catch {
+        await apoloApi.createUser({ username: trimmedUser });
+      }
+
+      setUsername(trimmedUser);
+      setBackendSyncEnabled(true);
+      navigation.replace('Main', { username: trimmedUser });
+    } catch (error) {
+      console.warn('No se pudo sincronizar el usuario con Apolo:', error);
+      Alert.alert(
+        'No se pudo sincronizar con Apolo',
+        'No se pudo preparar el usuario en el backend. Puedes continuar en modo local.',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Continuar sin sincronizar',
+            onPress: () => {
+              setUsername(trimmedUser);
+              setBackendSyncEnabled(false);
+              navigation.replace('Main', { username: trimmedUser });
+            },
+          },
+        ]
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGuest = () => {
+    setUsername('Invitado');
+    setBackendSyncEnabled(false);
+    navigation.replace('Main', { username: 'Invitado' });
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#121212" />
+
+      <View style={styles.content}>
+        <View style={styles.logoContainer}>
+          <Image
+            source={require('../assets/prometeo-logo.jpeg')}
+            style={styles.logoImage}
+            resizeMode="contain"
+            accessibilityLabel="Logo de Prometeo"
+          />
+        </View>
+
+        <Text style={styles.title}>Prometeo</Text>
+        <Text style={styles.subtitle}>
+          Usa tu nombre para sincronizar tus selecciones con Prometeo.
+        </Text>
+
+        <TextInput
+          style={styles.input}
+          placeholder="Nombre de usuario"
+          placeholderTextColor="#606060"
+          value={inputUsername}
+          onChangeText={setInputUsername}
+          autoCapitalize="none"
+          onSubmitEditing={handleLogin}
+          returnKeyType="go"
+        />
+
+        <TouchableOpacity
+          style={styles.loginButton}
+          onPress={handleLogin}
+          disabled={loading}
+          activeOpacity={0.8}
+        >
+          {loading ? (
+            <ActivityIndicator color="#FFFFFF" />
+          ) : (
+            <Text style={styles.loginButtonText}>CONTINUAR</Text>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={handleGuest} style={styles.guestButton} activeOpacity={0.7}>
+          <Text style={styles.guestText}>CONTINUAR COMO INVITADO</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#121212',
+  },
+  content: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 36,
+  },
+  logoContainer: {
+    marginBottom: 24,
+  },
+  logoImage: {
+    width: 160,
+    height: 151,
+    borderRadius: 12,
+  },
+  title: {
+    color: '#FFFFFF',
+    fontSize: 38,
+    fontWeight: 'bold',
+    letterSpacing: -0.8,
+  },
+  subtitle: {
+    color: '#909090',
+    fontSize: 14,
+    marginTop: 8,
+    marginBottom: 56,
+    textAlign: 'center',
+  },
+  input: {
+    width: '100%',
+    height: 58,
+    backgroundColor: '#222222',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#333333',
+    color: '#FFFFFF',
+    paddingHorizontal: 22,
+    fontSize: 15,
+    marginBottom: 20,
+  },
+  loginButton: {
+    width: '100%',
+    height: 58,
+    backgroundColor: '#1DB954',
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loginButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+    letterSpacing: 0.8,
+  },
+  guestButton: {
+    marginTop: 32,
+    padding: 8,
+  },
+  guestText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: 'bold',
+    letterSpacing: 1.2,
+    opacity: 0.7,
+  },
+});

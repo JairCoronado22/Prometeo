@@ -1,15 +1,26 @@
+# Android local configuration
+android/local.properties
+android/.gradle/
+android/app/build/
+android/build/
+.gradle/
+
+# Node dependencies
+node_modules/
+
+# IDE / Editor files
+.idea/
+.vscode/
 *.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
+
+# OS files
 .DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
-local.properties
+Thumbs.db
+
+# Build outputs
+build/
+dist/
+*.log
+
+# Artifacts
+.artifacts/
