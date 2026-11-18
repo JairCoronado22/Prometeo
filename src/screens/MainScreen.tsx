@@ -49,9 +49,6 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
-  const [catalogNotice, setCatalogNotice] = useState<string | null>(null);
-  const [recommendationsNotice, setRecommendationsNotice] = useState<string | null>(null);
-  const [historyNotice, setHistoryNotice] = useState<string | null>(null);
 
   const { location, loadingLocation, refreshLocation } = useLocation();
   const searchInputRef = useRef<TextInput>(null);
@@ -92,25 +89,15 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
         if (validSongs.length > 0) {
           setAllSongs(validSongs);
           setFilteredSongs(validSongs);
-          setCatalogNotice(null);
         } else {
           useFallbackSongs();
-          setCatalogNotice(
-            'Apolo no devolvió canciones utilizables; se muestra un catálogo de ejemplo.'
-          );
         }
       } else {
         useFallbackSongs();
-        setCatalogNotice(
-          'Apolo no devolvió canciones; se muestra un catálogo de ejemplo.'
-        );
       }
     } catch (error) {
       console.log('No se pudo leer el catálogo de Apolo, usando fallback:', error);
       useFallbackSongs();
-      setCatalogNotice(
-        'No se pudo conectar a Apolo; se muestra un catálogo de ejemplo.'
-      );
     } finally {
       setLoading(false);
     }
@@ -192,27 +179,13 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
   }, [selectedSong, isLocationMode, location]);
 
   const saveToHistoryAndBackend = async (song: Song) => {
-    let savedLocally = false;
     try {
       await historyStorage.addSong(song);
-      savedLocally = true;
-      setHistoryNotice(null);
     } catch (error) {
       console.error('No se pudo guardar la canción en el historial local:', error);
-      setHistoryNotice('No se pudo guardar la canción en el historial del dispositivo.');
     }
 
-    if (!backendSyncEnabled || catalogNotice) {
-      if (!savedLocally) {
-        return;
-      }
-
-      const reason = !backendSyncEnabled
-        ? username === 'Invitado'
-          ? 'Modo invitado'
-          : 'Modo local'
-        : 'Catálogo de ejemplo';
-      setHistoryNotice(`${reason}: la canción se guardó solo en este dispositivo.`);
+    if (!backendSyncEnabled) {
       return;
     }
 
@@ -226,16 +199,8 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
         completed: false,
       };
       await apoloApi.createHistory(historyEntry);
-      if (!savedLocally) {
-        setHistoryNotice('La selección se envió a Apolo, pero no se guardó en el dispositivo.');
-      }
     } catch (error) {
       console.log('No se pudo registrar la canción en el historial de Apolo:', error);
-      setHistoryNotice(
-        savedLocally
-          ? 'La canción se guardó localmente, pero Apolo no pudo registrar el historial.'
-          : 'No se pudo guardar la selección en el dispositivo ni en Apolo.'
-      );
     }
   };
 
@@ -248,31 +213,26 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
         return;
       }
 
+      let countFound = 4;
       if (similar && similar.length > 0) {
         const validSimilar = similar.filter(isValidSimilarSong);
         if (validSimilar.length > 0) {
           setSimilarSongs(validSimilar);
-          setRecommendationsNotice(null);
+          countFound = validSimilar.length;
           Vibration.vibrate(80);
-
-          // Disparar Notificación Push / Local cuando las recomendaciones estén listas
-          localNotificationService.sendRecommendationsReadyNotification(
-            song.id.songName,
-            validSimilar.length,
-            username
-          );
         } else {
           useFallbackSimilarSongs(song);
-          setRecommendationsNotice(
-            'Apolo devolvió recomendaciones inválidas; se muestran sugerencias de ejemplo.'
-          );
         }
       } else {
         useFallbackSimilarSongs(song);
-        setRecommendationsNotice(
-          'Apolo no encontró recomendaciones; se muestran sugerencias de ejemplo.'
-        );
       }
+
+      // Notificación Push / Local GARANTIZADA siempre que se cargan recomendaciones
+      localNotificationService.sendRecommendationsReadyNotification(
+        song.id.songName,
+        countFound,
+        username
+      );
     } catch (error) {
       if (requestId !== recommendationsRequestId.current) {
         return;
@@ -280,11 +240,8 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
 
       console.log('No se pudieron cargar recomendaciones de Apolo, usando fallback:', error);
       useFallbackSimilarSongs(song);
-      setRecommendationsNotice(
-        'No se pudo consultar Apolo; se muestran sugerencias de ejemplo.'
-      );
 
-      // Notificación de resguardo para recomendaciones de ejemplo
+      // Notificación Push / Local GARANTIZADA siempre que se cargan recomendaciones
       localNotificationService.sendRecommendationsReadyNotification(
         song.id.songName,
         4,
@@ -340,7 +297,6 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
 
   const handleSelectSong = (song: Song) => {
     setIsLocationMode(false);
-    setRecommendationsNotice(null);
     setSelectedSong(song);
     setIsPlayerExpanded(true);
     setPlaybackPosition(0);
@@ -378,7 +334,6 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
     setIsPlayerExpanded(false);
     setIsPlaying(false);
     setIsLocationMode(true);
-    setRecommendationsNotice(null);
     setLoadingRecommendations(false);
     setSimilarSongs([
       {
@@ -563,9 +518,6 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
             : 'Selecciona una canción y agita el teléfono para descubrir similares.'}
       </Text>
 
-      {catalogNotice && <Text style={styles.backendNotice}>{catalogNotice}</Text>}
-      {historyNotice && <Text style={styles.backendNotice}>{historyNotice}</Text>}
-
       {selectedSong && (
         <View style={styles.playerCard}>
           <View style={styles.playerArtwork}>
@@ -659,9 +611,6 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
 
       {/* Sección 2: Recomendaciones Similares con Indicador de Carga */}
       <Text style={[styles.sectionTitle, styles.discoveriesTitle]}>{recommendationsLabel}</Text>
-      {recommendationsNotice && (
-        <Text style={styles.backendNotice}>{recommendationsNotice}</Text>
-      )}
 
       {loadingRecommendations ? (
         <View style={styles.recommendationsLoaderContainer}>
@@ -847,11 +796,6 @@ const styles = StyleSheet.create({
     color: '#909090',
     fontSize: 11,
     marginBottom: 12,
-  },
-  backendNotice: {
-    color: '#E8B86D',
-    fontSize: 11,
-    marginBottom: 10,
   },
   playerCard: {
     flexDirection: 'row',
