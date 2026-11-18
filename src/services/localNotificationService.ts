@@ -1,8 +1,9 @@
 import PushNotification from 'react-native-push-notification';
-import { Platform, NativeModules } from 'react-native';
+import { Platform } from 'react-native';
 import { apoloApi } from '../api/apoloApi';
 
 let deviceToken: string | null = null;
+let channelInitialized = false;
 
 function generateDeviceToken(): string {
   const timestamp = Date.now().toString(36);
@@ -46,11 +47,6 @@ export function getDeviceToken(): string | null {
 
 export function configureLocalNotifications() {
   try {
-    if (Platform.OS === 'android' && !NativeModules.RNPushNotification) {
-      console.log('[LocalNotification] Módulo nativo RNPushNotification no disponible. Modo degradado seguro.');
-      return;
-    }
-
     PushNotification.configure({
       onNotification: (notification: any) => {
         console.log('[LocalNotification] Notificación recibida:', notification);
@@ -64,8 +60,32 @@ export function configureLocalNotifications() {
       popInitialNotification: false,
       requestPermissions: Platform.OS === 'ios',
     });
+    createNotificationChannel();
   } catch (error) {
     console.log('[LocalNotification] Error al configurar notificaciones:', error);
+  }
+}
+
+export function createNotificationChannel() {
+  if (channelInitialized) return;
+  try {
+    PushNotification.createChannel(
+      {
+        channelId: 'songfinder-channel',
+        channelName: 'Prometeo',
+        channelDescription: 'Notificaciones de la aplicación Prometeo',
+        playSound: true,
+        soundName: 'default',
+        importance: 4,
+        vibrate: true,
+      },
+      (created: boolean) => {
+        channelInitialized = true;
+        console.log(`[LocalNotification] Canal nativo creado/verificado: ${created}`);
+      }
+    );
+  } catch (e) {
+    console.log('[LocalNotification] Error al crear canal:', e);
   }
 }
 
@@ -79,26 +99,30 @@ export function createNotification(params: {
   data?: object;
 }) {
   try {
-    if (Platform.OS === 'android' && !NativeModules.RNPushNotification) {
-      console.log(`[LocalNotification Simulado]: ${params.title} - ${params.message}`);
-      return params.id || 1;
-    }
+    createNotificationChannel();
 
-    const { id = Math.floor(Math.random() * 10000), title, message, ...rest } = params;
+    const notifId = params.id || Math.floor(Math.random() * 100000);
 
     PushNotification.localNotification({
       channelId: 'songfinder-channel',
-      id,
-      title,
-      message,
-      bigText: message,
-      userInfo: rest.data || {},
+      id: notifId,
+      title: params.title,
+      message: params.message,
+      bigText: params.message,
+      subText: params.subtitle || 'Prometeo',
+      vibrate: true,
+      vibration: 300,
+      playSound: true,
+      soundName: 'default',
+      priority: 'high',
+      importance: 'high',
+      userInfo: params.data || {},
     } as any);
 
-    console.log(`[LocalNotification] Notificación creada: ${title}`);
-    return id;
+    console.log(`[LocalNotification] Notificación real enviada a Android: ${params.title}`);
+    return notifId;
   } catch (e) {
-    console.log('[LocalNotification] Fallo al crear notificación:', e);
+    console.log('[LocalNotification] Fallo al disparar notificación:', e);
     return params.id || 1;
   }
 }
@@ -112,24 +136,21 @@ export function scheduleNotification(params: {
   data?: object;
 }) {
   try {
-    if (Platform.OS === 'android' && !NativeModules.RNPushNotification) {
-      return params.id || 1;
-    }
-
-    const { id = Math.floor(Math.random() * 10000), title, message, date, ...rest } = params;
+    createNotificationChannel();
+    const notifId = params.id || Math.floor(Math.random() * 100000);
 
     PushNotification.localNotificationSchedule({
       channelId: 'songfinder-channel',
-      id,
-      title,
-      message,
-      bigText: message,
+      id: notifId,
+      title: params.title,
+      message: params.message,
+      bigText: params.message,
       number: 1,
-      date,
-      userInfo: rest.data || {},
+      date: params.date,
+      userInfo: params.data || {},
     } as any);
 
-    return id;
+    return notifId;
   } catch (e) {
     console.log('[LocalNotification] Fallo al agendar notificación:', e);
     return params.id || 1;
@@ -138,7 +159,6 @@ export function scheduleNotification(params: {
 
 export function cancelNotification(id: number) {
   try {
-    if (Platform.OS === 'android' && !NativeModules.RNPushNotification) return;
     PushNotification.cancelLocalNotification(String(id));
   } catch (e) {
     console.log('[LocalNotification] Fallo al cancelar notificación:', e);
@@ -147,30 +167,9 @@ export function cancelNotification(id: number) {
 
 export function cancelAllNotifications() {
   try {
-    if (Platform.OS === 'android' && !NativeModules.RNPushNotification) return;
     PushNotification.cancelAllLocalNotifications();
   } catch (e) {
     console.log('[LocalNotification] Fallo al cancelar todas las notificaciones:', e);
-  }
-}
-
-export function createNotificationChannel() {
-  try {
-    if (Platform.OS === 'android' && !NativeModules.RNPushNotification) return;
-    PushNotification.createChannel(
-      {
-        channelId: 'songfinder-channel',
-        channelName: 'Prometeo',
-        channelDescription: 'Notificaciones de Prometeo',
-        playSound: true,
-        soundName: 'default',
-        importance: 4,
-        vibrate: true,
-      },
-      (created: any) => console.log(`[LocalNotification] Canal creado: ${created}`)
-    );
-  } catch (e) {
-    console.log('[LocalNotification] Fallo al crear canal de notificaciones:', e);
   }
 }
 
