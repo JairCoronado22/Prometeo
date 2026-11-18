@@ -23,7 +23,7 @@ export async function registerDeviceToken(
     console.log('[PushNotification] Token registrado en backend:', result);
     return result;
   } catch (error) {
-    console.warn('[PushNotification] Error al registrar token en backend:', error);
+    console.log('[PushNotification] Error al registrar token en backend:', error);
     return null;
   }
 }
@@ -35,7 +35,7 @@ export async function unregisterDeviceToken(): Promise<void> {
       console.log('[PushNotification] Token desregistrado del backend');
       deviceToken = null;
     } catch (error) {
-      console.warn('[PushNotification] Error al desregistrar token:', error);
+      console.log('[PushNotification] Error al desregistrar token:', error);
     }
   }
 }
@@ -47,7 +47,7 @@ export function getDeviceToken(): string | null {
 export function configureLocalNotifications() {
   try {
     if (Platform.OS === 'android' && !NativeModules.RNPushNotification) {
-      console.warn('[LocalNotification] Módulo nativo RNPushNotification no disponible. Modo degradado seguro.');
+      console.log('[LocalNotification] Módulo nativo RNPushNotification no disponible. Modo degradado seguro.');
       return;
     }
 
@@ -65,7 +65,7 @@ export function configureLocalNotifications() {
       requestPermissions: Platform.OS === 'ios',
     });
   } catch (error) {
-    console.warn('[LocalNotification] Error al configurar notificaciones:', error);
+    console.log('[LocalNotification] Error al configurar notificaciones:', error);
   }
 }
 
@@ -98,7 +98,7 @@ export function createNotification(params: {
     console.log(`[LocalNotification] Notificación creada: ${title}`);
     return id;
   } catch (e) {
-    console.warn('[LocalNotification] Fallo al crear notificación:', e);
+    console.log('[LocalNotification] Fallo al crear notificación:', e);
     return params.id || 1;
   }
 }
@@ -131,7 +131,7 @@ export function scheduleNotification(params: {
 
     return id;
   } catch (e) {
-    console.warn('[LocalNotification] Fallo al agendar notificación:', e);
+    console.log('[LocalNotification] Fallo al agendar notificación:', e);
     return params.id || 1;
   }
 }
@@ -141,7 +141,7 @@ export function cancelNotification(id: number) {
     if (Platform.OS === 'android' && !NativeModules.RNPushNotification) return;
     PushNotification.cancelLocalNotification(String(id));
   } catch (e) {
-    console.warn('[LocalNotification] Fallo al cancelar notificación:', e);
+    console.log('[LocalNotification] Fallo al cancelar notificación:', e);
   }
 }
 
@@ -150,7 +150,7 @@ export function cancelAllNotifications() {
     if (Platform.OS === 'android' && !NativeModules.RNPushNotification) return;
     PushNotification.cancelAllLocalNotifications();
   } catch (e) {
-    console.warn('[LocalNotification] Fallo al cancelar todas las notificaciones:', e);
+    console.log('[LocalNotification] Fallo al cancelar todas las notificaciones:', e);
   }
 }
 
@@ -170,7 +170,7 @@ export function createNotificationChannel() {
       (created: any) => console.log(`[LocalNotification] Canal creado: ${created}`)
     );
   } catch (e) {
-    console.warn('[LocalNotification] Fallo al crear canal de notificaciones:', e);
+    console.log('[LocalNotification] Fallo al crear canal de notificaciones:', e);
   }
 }
 
@@ -184,7 +184,7 @@ export async function sendTestNotification(userUsername?: string) {
     try {
       await apoloApi.sendTestNotification(userUsername);
     } catch (error) {
-      console.warn('[PushNotification] Error al notificar backend:', error);
+      console.log('[PushNotification] Error al notificar backend:', error);
     }
   }
 }
@@ -210,7 +210,7 @@ export async function sendSongDetectedNotification(
     try {
       await apoloApi.sendSongNotification(userUsername, songTitle, artist);
     } catch (error) {
-      console.warn('[PushNotification] Error al notificar backend:', error);
+      console.log('[PushNotification] Error al notificar backend:', error);
     }
   }
 }
