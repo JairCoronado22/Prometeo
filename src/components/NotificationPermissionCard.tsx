@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import {
   Alert,
   Linking,
+  PermissionsAndroid,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -18,12 +20,12 @@ const statusMessage: Record<
   NotificationPermissionStatus | 'checking' | 'error' | 'active' | 'registered',
   string
 > = {
-  granted: 'Notificaciones activas. Puedes recibir alertas de SongFinder.',
+  granted: 'Notificaciones activas. Puedes recibir alertas de Prometeo.',
   active: 'Notificaciones locales activas.',
   registered: 'Token registrado en el backend. Notificaciones push activas.',
   denied: 'Permite notificaciones para habilitarlas en el dispositivo.',
   blocked: 'El permiso está bloqueado. Actívalo desde los ajustes de Android.',
-  'not-required': 'Esta versión de Android no requiere permiso de notificaciones.',
+  'not-required': 'Notificaciones locales activas.',
   unsupported: 'La solicitud de permiso está configurada actualmente para Android.',
   checking: 'Revisando permiso de notificaciones…',
   error: 'No se pudo revisar el permiso de notificaciones.',
@@ -44,8 +46,8 @@ export const NotificationPermissionCard: React.FC = () => {
       .then((permissionStatus) => {
         if (active) {
           setStatus(permissionStatus);
-          if (permissionStatus === 'granted') {
-            // Si hay usuario logueado, verificar si el token está registrado
+          localNotificationService.createNotificationChannel();
+          if (permissionStatus === 'granted' || permissionStatus === 'not-required') {
             if (username && username !== 'Invitado') {
               const token = localNotificationService.getDeviceToken();
               if (token) {
@@ -60,7 +62,7 @@ export const NotificationPermissionCard: React.FC = () => {
         }
       })
       .catch((error: unknown) => {
-        console.warn('No se pudo revisar el permiso de notificaciones:', error);
+        console.log('No se pudo revisar el permiso de notificaciones:', error);
         if (active) {
           setStatus('error');
         }
@@ -74,23 +76,25 @@ export const NotificationPermissionCard: React.FC = () => {
   const requestPermission = async () => {
     setRequesting(true);
     try {
+      if (Platform.OS === 'android' && Platform.Version >= 33) {
+        await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+      }
+
       const permissionStatus = await notificationPermissionService.requestPermission();
       setStatus(permissionStatus);
 
-      if (permissionStatus === 'granted') {
-        localNotificationService.createNotificationChannel();
-        // Si hay usuario logueado, registrar el token en el backend
-        if (username && username !== 'Invitado') {
-          try {
-            await localNotificationService.registerDeviceToken(username);
-            setStatus('registered');
-          } catch (error) {
-            console.error('[NotificationCard] Error al registrar token:', error);
-            setStatus('active');
-          }
-        } else {
+      localNotificationService.createNotificationChannel();
+
+      if (username && username !== 'Invitado') {
+        try {
+          await localNotificationService.registerDeviceToken(username);
+          setStatus('registered');
+        } catch (error) {
+          console.log('[NotificationCard] Error al registrar token:', error);
           setStatus('active');
         }
+      } else {
+        setStatus('active');
       }
 
       if (permissionStatus === 'blocked') {
@@ -104,9 +108,8 @@ export const NotificationPermissionCard: React.FC = () => {
         );
       }
     } catch (error) {
-      console.error('No se pudo solicitar el permiso de notificaciones:', error);
+      console.log('No se pudo solicitar el permiso de notificaciones:', error);
       setStatus('error');
-      Alert.alert('Error', 'No se pudo solicitar el permiso de notificaciones.');
     } finally {
       setRequesting(false);
     }
@@ -115,14 +118,14 @@ export const NotificationPermissionCard: React.FC = () => {
   const sendTestNotification = async () => {
     setSendingTest(true);
     try {
+      if (Platform.OS === 'android' && Platform.Version >= 33) {
+        await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+      }
+
+      localNotificationService.createNotificationChannel();
       await localNotificationService.sendTestNotification(username);
-      Alert.alert(
-        'Éxito',
-        'Notificación de prueba enviada. Revisa tu bandeja de notificaciones.'
-      );
     } catch (error) {
-      console.error('Error al enviar notificación de prueba:', error);
-      Alert.alert('Error', 'No se pudo enviar la notificación de prueba.');
+      console.log('Error al enviar notificación de prueba:', error);
     } finally {
       setSendingTest(false);
     }
@@ -146,7 +149,7 @@ export const NotificationPermissionCard: React.FC = () => {
             <Text style={styles.buttonText}>{requesting ? '…' : 'Activar'}</Text>
           </TouchableOpacity>
         )}
-        {(status === 'granted' || status === 'active' || status === 'registered') && (
+        {(status === 'granted' || status === 'active' || status === 'registered' || status === 'not-required') && (
           <TouchableOpacity
             style={styles.testButton}
             onPress={() => void sendTestNotification()}
