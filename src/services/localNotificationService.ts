@@ -215,6 +215,25 @@ export async function sendSongDetectedNotification(
   }
 }
 
+export async function sendRecommendationsReadyNotification(
+  songTitle: string,
+  count: number,
+  userUsername?: string
+) {
+  createNotification({
+    title: '🎵 Recomendaciones listas',
+    message: `¡Listo! Encontramos ${count} canciones similares para "${songTitle}".`,
+  });
+
+  if (userUsername && userUsername !== 'Invitado') {
+    try {
+      await apoloApi.sendSongNotification(userUsername, songTitle, `Recomendaciones listas (${count})`);
+    } catch (error) {
+      console.log('[PushNotification] Error al notificar backend de recomendaciones:', error);
+    }
+  }
+}
+
 export const localNotificationService = {
   configureLocalNotifications,
   createNotification,
@@ -225,6 +244,7 @@ export const localNotificationService = {
   sendTestNotification,
   sendWelcomeNotification,
   sendSongDetectedNotification,
+  sendRecommendationsReadyNotification,
   registerDeviceToken,
   unregisterDeviceToken,
   getDeviceToken,

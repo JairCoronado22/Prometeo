@@ -24,6 +24,7 @@ import { useShake } from '../hooks/useShake';
 import { formatLocationLabel } from '../services/locationService';
 import { useAuth } from '../context/AuthContext';
 import { NotificationPermissionCard } from '../components/NotificationPermissionCard';
+import { localNotificationService } from '../services/localNotificationService';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Main'>;
 
@@ -253,6 +254,13 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
           setSimilarSongs(validSimilar);
           setRecommendationsNotice(null);
           Vibration.vibrate(80);
+
+          // Disparar Notificación Push / Local cuando las recomendaciones estén listas
+          localNotificationService.sendRecommendationsReadyNotification(
+            song.id.songName,
+            validSimilar.length,
+            username
+          );
         } else {
           useFallbackSimilarSongs(song);
           setRecommendationsNotice(
@@ -274,6 +282,13 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
       useFallbackSimilarSongs(song);
       setRecommendationsNotice(
         'No se pudo consultar Apolo; se muestran sugerencias de ejemplo.'
+      );
+
+      // Notificación de resguardo para recomendaciones de ejemplo
+      localNotificationService.sendRecommendationsReadyNotification(
+        song.id.songName,
+        4,
+        username
       );
     } finally {
       if (requestId === recommendationsRequestId.current) {
