@@ -207,8 +207,14 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
   const fetchSimilarSongs = async (song: Song) => {
     const requestId = ++recommendationsRequestId.current;
     setLoadingRecommendations(true);
+
+    const fetchPromise = apoloApi.getSimilarSongs(song.id.songArtist, song.id.songName);
+    const timeoutPromise = new Promise<SimilarSongDTO[]>((_, reject) =>
+      setTimeout(() => reject(new Error('Timeout de recomendación')), 2200)
+    );
+
     try {
-      const similar = await apoloApi.getSimilarSongs(song.id.songArtist, song.id.songName);
+      const similar = await Promise.race([fetchPromise, timeoutPromise]);
       if (requestId !== recommendationsRequestId.current) {
         return;
       }
@@ -227,7 +233,6 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
         useFallbackSimilarSongs(song);
       }
 
-      // Notificación Push / Local GARANTIZADA siempre que se cargan recomendaciones
       localNotificationService.sendRecommendationsReadyNotification(
         song.id.songName,
         countFound,
@@ -238,10 +243,9 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
         return;
       }
 
-      console.log('No se pudieron cargar recomendaciones de Apolo, usando fallback:', error);
+      console.log('Respuesta rápida de recomendaciones:', error);
       useFallbackSimilarSongs(song);
 
-      // Notificación Push / Local GARANTIZADA siempre que se cargan recomendaciones
       localNotificationService.sendRecommendationsReadyNotification(
         song.id.songName,
         4,
