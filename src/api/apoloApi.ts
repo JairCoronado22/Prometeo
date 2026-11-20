@@ -16,19 +16,25 @@ const BASE_URLS = [
 async function fetchWithFallback(endpoint: string, options?: RequestInit): Promise<Response> {
   let lastError: any = null;
   for (const baseUrl of BASE_URLS) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2200);
+
     try {
       const response = await fetch(`${baseUrl}${endpoint}`, {
         ...options,
+        signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',
           ...(options?.headers || {}),
         },
       });
+      clearTimeout(timeoutId);
       if (response.ok) {
         return response;
       }
       lastError = new Error(`Apolo respondió con HTTP ${response.status}`);
     } catch (e) {
+      clearTimeout(timeoutId);
       lastError = e;
     }
   }
