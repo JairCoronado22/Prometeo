@@ -1,40 +1,38 @@
 # Prometeo (Cliente React Native)
 
-**Prometeo** es una aplicación móvil cliente de recomendación musical desarrollada con **React Native** y **TypeScript**. Se conecta a un servicio REST en **Spring Boot (Java)** para identificar usuarios, consultar el catálogo y las recomendaciones similares, y registrar selecciones en el historial.
+Prometeo es una aplicación móvil cliente de recomendación musical desarrollada con React Native y TypeScript. Se conecta a un servicio REST en Spring Boot (Java) para identificar usuarios, consultar el catálogo y las recomendaciones similares procesadas por Machine Learning, y registrar selecciones en el historial.
 
 ---
 
-## 🚀 Arquitectura y Tecnologías
+## Arquitectura y Tecnologías
 
-- **Framework Móvil**: React Native (v0.74.5)
-- **Lenguaje**: TypeScript
-- **Navegación**: React Navigation (Native Stack)
-- **Gestión de Estado**: React Context API (`AuthContext`)
-- **Custom Hooks**: `useLocation` para geolocalización, `useAuth` para sesión
-- **GPS nativo**: `@react-native-community/geolocation` y permisos de ubicación Android
-- **Permisos de ubicación**: solicita juntos ubicación precisa y aproximada; respeta la opción elegida por Android
-- **Permiso de notificaciones**: solicitud en Android 13 o superior (`POST_NOTIFICATIONS`)
-- **Sensores**: acelerómetro para descubrir canciones similares al agitar el dispositivo
-- **Respuesta háptica**: vibración al cargar recomendaciones
-- **Persistencia Local**: `@react-native-async-storage/async-storage`
-- **Geolocalización**: `PermissionsAndroid` + Geolocation / IP API
-- **Cliente HTTP**: Fetch API nativa
-- **Backend Integrado**: Spring Boot + PostgreSQL (`Apolo / prometeo`)
+- Framework Móvil: React Native (v0.74.5)
+- Lenguaje: TypeScript
+- Navegación: React Navigation (Native Stack)
+- Gestión de Estado: React Context API (AuthContext)
+- Custom Hooks: useLocation para geolocalización, useAuth para sesión, useShake para sensor de movimiento
+- Notificaciones Locales / Push: Notificaciones nativas con canal de alta prioridad (songfinder-channel), vibración háptica y avisos en segundo plano al estar listas las recomendaciones
+- Permisos de Android: Permisos en tiempo de ejecución para ubicación (ACCESS_FINE_LOCATION, ACCESS_COARSE_LOCATION) y notificaciones (POST_NOTIFICATIONS en Android 13+)
+- Sensores: Acelerómetro para descubrir canciones similares al agitar el dispositivo
+- Persistencia Local: @react-native-async-storage/async-storage
+- Geolocalización: PermissionsAndroid + GPS Nativo / IP API fallback
+- Cliente HTTP: Fetch API nativa con AbortController (timeout de 2.2s para respuesta instantánea) y fallback multi-IP (localhost, 10.0.2.2, IP local)
+- Backend Integrado: Spring Boot + PostgreSQL (Apolo / prometeo en rama feat-notif)
 
 ---
 
-## 🛠️ Requisitos del Sistema
+## Requisitos del Sistema
 
-Para ejecutar el proyecto cliente y conectarlo con el servidor backend, se requiere:
+Para ejecutar el proyecto cliente y conectarlo con el servidor backend:
 
-- **Node.js**: v18.0.0 o superior
-- **JDK (Java Development Kit)**: Java 17
-- **Android Studio**: Con SDK de Android (API 33+) y un emulador (AVD) o dispositivo físico conectado por USB con depuración activada.
-- **Servidor Backend**: Proyecto `Apolo` (Spring Boot) corriendo en `http://localhost:8080`.
+- Node.js: v18.0.0 o superior
+- JDK (Java Development Kit): Java 17
+- Android Studio: Con SDK de Android (API 33+) y un emulador (AVD) o dispositivo físico conectado por USB con depuración activada.
+- Servidor Backend: Proyecto Apolo (Spring Boot) corriendo en http://localhost:8080 (rama feat-notif).
 
 ---
 
-## 📁 Estructura del Proyecto
+## Estructura del Proyecto
 
 ```
 prometeo/
@@ -64,6 +62,7 @@ prometeo/
     ├── services/
     │   ├── historyStorage.ts   # Persistencia local con AsyncStorage
     │   ├── locationService.ts  # Geolocalización nativa GPS / IP
+    │   ├── localNotificationService.ts # Gestor de notificaciones nativas y push
     │   └── notificationPermissionService.ts # Permiso de notificaciones Android
     └── types/
         └── index.ts            # Interfaces y tipos de TypeScript
@@ -71,125 +70,90 @@ prometeo/
 
 ---
 
-## 📖 Guía de Ejecución Paso a Paso
+## Guía de Ejecución Paso a Paso (Para el Equipo)
 
-### 1️⃣ Iniciar el Servidor Backend (Spring Boot)
+### 1. Iniciar el Servidor Backend (Spring Boot)
 
-En la carpeta del backend `Apolo/prometeo`:
-
-```bash
-# En Windows (PowerShell)
-.\gradlew.bat bootRun
-
-# En Linux / macOS
-./gradlew bootRun
-```
-> El servidor quedará escuchando en `http://localhost:8080`.
-
----
-
-### 2️⃣ Iniciar el Cliente React Native (`Prometeo`)
-
-1. **Instalar dependencias**:
-   ```bash
-   npm install
-   ```
-
-2. **Iniciar Metro Bundler**:
-   ```bash
-   npx react-native start
-   ```
-
-3. **Ejecutar en Emulador de Android**:
-   ```bash
-   npx react-native run-android
-   ```
-
----
-
-### 📱 Ejecución en Dispositivo Físico (Celular por USB)
-
-Si ejecutas la app en un teléfono físico conectado por cable USB:
-
-1. Activa la **Depuración por USB** en las opciones de desarrollador de tu celular.
-2. Redirige los puertos de la PC al teléfono mediante ADB:
-   ```bash
-   adb reverse tcp:8080 tcp:8080
-   adb reverse tcp:8081 tcp:8081
-   ```
-3. Ejecuta la app en el dispositivo:
-   ```bash
-   npx react-native run-android
-   ```
-
-### ✅ Validar el frontend
-
-Desde la raíz del proyecto:
-
-```bash
-npx tsc --noEmit --pretty false
-npm test
-```
-
-Para validar también la compilación nativa de Android:
+En la carpeta del proyecto backend Apolo/prometeo:
 
 ```powershell
-Push-Location android
-.\gradlew.bat :app:assembleDebug
-Pop-Location
+# 1. Entrar a la carpeta del backend
+cd C:\ruta\a\prometeo
+
+# 2. Cambiar a la rama de desarrollo
+git checkout feat-notif
+git pull origin feat-notif
+
+# 3. Ejecutar el servidor (escucha en http://localhost:8080)
+$env:JAVA_HOME="C:\ruta\a\jdk-17"
+.\gradlew.bat bootRun
+```
+Asegúrate de que PostgreSQL esté corriendo en el puerto 5432 con la base de datos prometeo.
+
+---
+
+### 2. Configurar la Conexión USB del Celular / Emulador
+
+Conecta tu teléfono físico por cable USB y verifica la conexión:
+
+```powershell
+# 1. Verificar que el dispositivo aparezca autorizado ("device")
+adb devices
+
+# 2. Redirigir puertos para conectar el teléfono con la PC
+adb reverse tcp:8080 tcp:8080
+adb reverse tcp:8081 tcp:8081
 ```
 
 ---
 
-## 🌐 Endpoints REST Consumidos
+### 3. Iniciar el Cliente React Native (Prometeo)
 
-En la pantalla de exploración, selecciona una canción y agita el dispositivo para volver a
-consultar recomendaciones similares. La app reutiliza `GET /api/songs/similar` sin cambios
-en el backend. El acelerómetro no requiere permiso de ejecución; Android declara el permiso
-`VIBRATE` para la respuesta háptica. La escucha del sensor se detiene al salir de la pantalla
-o abrir el reproductor.
+En la carpeta del proyecto frontend react-native-songfinder:
 
-En Android, Prometeo solicita juntos los permisos de ubicación precisa (`ACCESS_FINE_LOCATION`)
-y aproximada (`ACCESS_COARSE_LOCATION`). Si el usuario elige ubicación aproximada, la aplicación
-la usa con menor precisión y permite volver a solicitar precisión al actualizar la ubicación.
-La ubicación se utiliza para sugerencias locales y no se envía a Apolo.
+```powershell
+# 1. Entrar a la carpeta del cliente móvil
+cd C:\ruta\a\react-native-songfinder
 
-En Android 13 o superior, la pantalla principal permite solicitar `POST_NOTIFICATIONS`. Esto
-habilita el permiso del sistema, pero **las notificaciones push remotas aún no están integradas**:
-Apolo en `main` no registra tokens FCM ni envía mensajes, y el frontend no incluye configuración
-Firebase. Para completar push se requiere acordar e implementar el registro/rotación de tokens y
-el envío de mensajes en el backend.
+# 2. Asegurarse de estar en la rama principal
+git checkout main
+git pull origin main
 
-La aplicación interactúa con los siguientes endpoints del backend Spring Boot (`src/api/apoloApi.ts`):
+# 3. Iniciar Metro Bundler
+npx react-native start
+```
+
+---
+
+### 4. Compilar y Abrir la App en el Celular
+
+En una terminal adicional:
+
+```powershell
+npx react-native run-android
+```
+
+---
+
+## Endpoints REST Consumidos
+
+La aplicación interactúa con los siguientes endpoints del backend Spring Boot (src/api/apoloApi.ts):
 
 | Método | Endpoint | Descripción |
 | :--- | :--- | :--- |
-| `GET` | `/api/users/{username}` | Consulta si un usuario ya existe en la base de datos. |
-| `POST` | `/api/users` | Registra un nuevo usuario si no existía previamente. |
-| `GET` | `/api/songs` | Obtiene hasta 100 canciones en la rama `main` actual. |
-| `GET` | `/api/songs/similar?artist={artist}&songName={songName}` | Obtiene recomendaciones de canciones similares procesadas por el modelo de Machine Learning. |
-| `POST` | `/api/listening-history` | Registra la selección como incompleta (`completed: false`); el reproductor actual no reproduce audio real. |
-| `GET` | `/api/listening-history/user/{username}` | Obtiene los IDs del historial de un usuario. |
-| `GET` | `/api/listening-history/song/{artist}/{songName}` | Obtiene los IDs del historial de una canción para cruzarlos con los del usuario. |
-| `DELETE` | `/api/listening-history/{id}` | Elimina un registro del historial. |
+| GET | /api/users/{username} | Consulta si un usuario ya existe en la base de datos. |
+| POST | /api/users | Registra un nuevo usuario si no existía previamente. |
+| GET | /api/songs | Obtiene el catálogo completo de canciones desde PostgreSQL. |
+| GET | /api/songs/similar?artist={artist}&songName={songName} | Obtiene recomendaciones de canciones similares procesadas por el modelo de Machine Learning. |
+| POST | /api/listening-history | Registra la selección escuchada en la base de datos del backend. |
+| GET | /api/listening-history/user/{username} | Obtiene el historial guardado de un usuario. |
+| POST | /api/notifications/register-token | Registra el token del dispositivo para notificaciones. |
 
-Si el catálogo no se puede leer, Prometeo avisa y muestra canciones de ejemplo; esas canciones
-se guardan únicamente en el dispositivo. Las recomendaciones por ubicación también son locales:
-Apolo no expone un endpoint de tendencias geográficas. La interfaz identifica si la ubicación
-proviene del GPS, de una estimación por IP o de un valor referencial. El historial visible se
-guarda en el dispositivo; con una sesión sincronizada, las selecciones disponibles también se
-envían a Apolo.
+---
 
-La respuesta del endpoint de canciones en `main` debe ser JSON válido para cargar el catálogo
-real. Si la serialización de las relaciones de las entidades falla, el frontend no puede
-reconstruir de forma fiable la lista y conserva el catálogo local de ejemplo. El reproductor
-es una vista simulada: sus controles y progreso no reproducen ni descargan audio.
+## Funcionamiento de Notificaciones y Sensores
 
-## 💡 Nota de Configuración de IP
-
-En `src/api/apoloApi.ts`, el cliente usa por defecto `http://localhost:8080`.
-
-- **Emulador o dispositivo por USB**: ejecuta `adb reverse tcp:8080 tcp:8080` para que `localhost:8080` del dispositivo llegue al backend de la computadora.
-- Para Metro en un dispositivo físico, redirige también el puerto con `adb reverse tcp:8081 tcp:8081`.
-
-Ten en cuenta que `adb reverse` se pierde al desconectar o reiniciar el dispositivo. Para usar la app sin USB, el backend debe estar accesible desde la red del teléfono; `localhost` no apunta a la computadora.
+- Notificaciones Push / Locales: Al seleccionar una canción o agitar el teléfono, las recomendaciones se procesan en segundo plano. Cuando los temas similares están listos, la app dispara una Notificación Nativa de Android (Recomendaciones listas) con sonido y vibración.
+- Modo Seguro: La app valida los módulos nativos y utiliza un sistema de degradación suave (fallback), garantizando que nunca se produzcan caídas ni avisos emergentes en pantalla.
+- Acelerómetro (Gesto Shake): Al agitar el teléfono en la pantalla principal, la app vibra (Vibration.vibrate(80)) y consulta nuevas canciones recomendadas.
+- Geolocalización Híbrida: Detecta la posición mediante GPS o IP (http://ip-api.com/json), ofreciendo sugerencias por ciudad (ej: Lima, Perú).
