@@ -1,5 +1,6 @@
-# Android local configuration
+# Android local configuration (ruta del SDK de cada máquina; no versionar)
 android/local.properties
+local.properties
 android/.gradle/
 android/app/build/
 android/build/
