@@ -1,5 +1,13 @@
 # Prometeo — App móvil (React Native)
 
+<p align="center">
+  <a href="https://github.com/JairCoronado22/Prometeo/releases/latest/download/Prometeo.apk">
+    <img src="https://img.shields.io/badge/Descargar-APK%20Android-1DB954?style=for-the-badge&logo=android&logoColor=white" alt="Descargar APK para Android">
+  </a>
+  <br>
+  <sub>Última versión · <a href="https://github.com/JairCoronado22/Prometeo/releases">todas las versiones</a> · requiere permitir “instalar apps de origen desconocido”</sub>
+</p>
+
 App Android de recomendación musical. Muestra el catálogo de canciones, busca por nombre o artista, reproduce canciones y recomienda canciones parecidas usando el modelo de Machine Learning del backend (Spring Boot). También recomienda canciones al azar por notificación (botón 🎲 o agitando el teléfono) y sugiere canciones según tu ubicación.
 
 El backend (API REST) está en el repositorio **Prometeo-Backend**.
@@ -137,6 +145,16 @@ adb install -r app\build\outputs\apk\release\app-release.apk
 - APK: `android/app/build/outputs/apk/release/app-release.apk` (~84 MB con los MP3).
 - La primera compilación tarda ~7 min (descarga NDK/CMake); las siguientes, < 1 min.
 - El `release` se firma con `android/app/debug.keystore`: sirve para instalar por adb y para demos, **no para Play Store**.
+
+### Publicar el APK para el botón de descarga
+
+El botón del inicio descarga `https://github.com/JairCoronado22/Prometeo/releases/latest/download/Prometeo.apk`, es decir, el archivo **`Prometeo.apk`** de la **última release** de GitHub:
+
+1. Renombra `app-release.apk` a **`Prometeo.apk`** (el nombre debe ser exactamente ese).
+2. GitHub → **Releases** → **Draft a new release** → tag `v1.0.0` (o la versión que toque) → adjunta `Prometeo.apk` → **Publish release**.
+3. Para una versión nueva, crea otra release con el mismo nombre de archivo; el botón siempre apunta a la última.
+
+> ⚠️ El APK incluye los MP3 de `Canciones/`. En un repo público, publicarlo equivale a distribuir esas canciones.
 
 ---
 
