@@ -45,11 +45,37 @@ export function getDeviceToken(): string | null {
   return deviceToken;
 }
 
+export interface RecommendedSongPayload {
+  type: 'song-recommendation';
+  songName: string;
+  songArtist: string;
+}
+
+type NotificationTapHandler = (payload: RecommendedSongPayload) => void;
+let notificationTapHandler: NotificationTapHandler | null = null;
+
+/** MainScreen registra aquí qué hacer al tocar una notificación de recomendación. */
+export function setNotificationTapHandler(handler: NotificationTapHandler | null) {
+  notificationTapHandler = handler;
+}
+
+function extractRecommendation(notification: any): RecommendedSongPayload | null {
+  const data = notification?.data ?? notification?.userInfo ?? {};
+  if (data?.type === 'song-recommendation' && data.songName && data.songArtist) {
+    return { type: 'song-recommendation', songName: data.songName, songArtist: data.songArtist };
+  }
+  return null;
+}
+
 export function configureLocalNotifications() {
   try {
     PushNotification.configure({
       onNotification: (notification: any) => {
         console.log('[LocalNotification] Notificación recibida:', notification);
+        const payload = extractRecommendation(notification);
+        if (payload && notification?.userInteraction && notificationTapHandler) {
+          notificationTapHandler(payload);
+        }
         notification?.finish && notification.finish(2);
       },
       permissions: {
@@ -189,9 +215,10 @@ export async function sendTestNotification(userUsername?: string) {
 }
 
 export function sendWelcomeNotification(username: string) {
+  const name = username && username !== 'Invitado' ? `, ${username}` : '';
   createNotification({
-    title: '¡Bienvenido!',
-    message: `Hola ${username}, las notificaciones de Prometeo están activas.`,
+    title: `🎧 ¡Bienvenido a Prometeo${name}!`,
+    message: 'Toca 🎲 o agita el teléfono y te recomendamos una canción.',
   });
 }
 
@@ -211,6 +238,29 @@ export async function sendSongDetectedNotification(
     } catch (error) {
       console.log('[PushNotification] Error al notificar backend:', error);
     }
+  }
+}
+
+/**
+ * Notificación local "Te recomendamos <canción>". Al tocarla, la app abre esa canción.
+ * El aviso al backend es solo para el log y no bloquea.
+ */
+export function sendSongRecommendationNotification(
+  songName: string,
+  songArtist: string,
+  userUsername?: string
+) {
+  const payload: RecommendedSongPayload = { type: 'song-recommendation', songName, songArtist };
+  createNotification({
+    title: '🎲 Te recomendamos',
+    message: `${songName} — ${songArtist}. Toca para escucharla.`,
+    data: payload,
+  });
+
+  if (userUsername) {
+    apoloApi
+      .sendSongNotification(userUsername, songName, songArtist)
+      .catch((error) => console.log('[PushNotification] Backend no registró la recomendación:', error));
   }
 }
 
@@ -244,6 +294,8 @@ export const localNotificationService = {
   sendWelcomeNotification,
   sendSongDetectedNotification,
   sendRecommendationsReadyNotification,
+  sendSongRecommendationNotification,
+  setNotificationTapHandler,
   registerDeviceToken,
   unregisterDeviceToken,
   getDeviceToken,

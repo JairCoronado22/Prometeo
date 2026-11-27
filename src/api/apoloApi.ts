@@ -6,7 +6,16 @@ import {
   ListeningHistoryRecord,
 } from '../types';
 
+// URL pública del backend en la nube (Railway). Déjala vacía para usar solo las URLs locales.
+const CLOUD_URL = 'https://backend-production-7aae69d8.up.railway.app';
+
+// Límites de la demo (el backend también los aplica en SQL).
+export const MAIN_MENU_LIMIT = 20;
+export const SEARCH_LIMIT = 20;
+export const LOCAL_SONGS_LIMIT = 10;
+
 const BASE_URLS = [
+  ...(CLOUD_URL ? [CLOUD_URL] : []),
   'http://localhost:8080',
   'http://10.0.2.2:8080',
   'http://192.168.0.102:8080',
@@ -64,15 +73,23 @@ export const apoloApi = {
     return response.json();
   },
 
-  async getAllSongs(): Promise<Song[]> {
-    const response = await fetchWithFallback('/api/songs', {
+  async getAllSongs(limit = MAIN_MENU_LIMIT): Promise<Song[]> {
+    const response = await fetchWithFallback(`/api/songs?limit=${limit}`, {
       method: 'GET',
     });
     return response.json();
   },
 
+  async searchSongs(query: string, limit = SEARCH_LIMIT): Promise<Song[]> {
+    const response = await fetchWithFallback(
+      `/api/songs/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+      { method: 'GET' }
+    );
+    return response.json();
+  },
+
   async getSimilarSongs(artist: string, songName: string): Promise<SimilarSongDTO[]> {
-    const url = `/api/songs/similar?artist=${encodeURIComponent(artist)}&songName=${encodeURIComponent(songName)}`;
+    const url = `/api/songs/similar?artist=${encodeURIComponent(artist)}&songName=${encodeURIComponent(songName)}&limit=${SEARCH_LIMIT}`;
     const response = await fetchWithFallback(url, {
       method: 'GET',
     });

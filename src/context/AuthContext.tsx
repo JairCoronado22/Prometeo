@@ -29,8 +29,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       localNotificationService.registerDeviceToken(user).catch((error) => {
         console.error('[Auth] Error al registrar token en backend:', error);
       });
-      // Enviar notificación de bienvenida al iniciar sesión
-      localNotificationService.sendWelcomeNotification(user);
+      // La bienvenida por notificación la envía MainScreen al entrar (también para Invitado).
     }
   };
 

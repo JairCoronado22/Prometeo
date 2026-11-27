@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, StyleProp, ViewStyle } from 'react-native';
 import { Song, SimilarSongDTO } from '../types';
+import { cleanDisplayName, formatSimilarity } from '../utils/songDisplay';
 
 interface SongItemProps {
   song?: Song;
@@ -47,15 +48,19 @@ export const SongItem: React.FC<SongItemProps> = ({
   onPress,
   style,
 }) => {
-  const songName = song?.id.songName || similarSong?.songName || '';
-  const artistName = song?.id.songArtist || similarSong?.artist || '';
-  const similarityText = similarSong ? ` • ${Math.round(similarSong.similarity * 100)}% coincidencia` : '';
+  const songName = cleanDisplayName(song?.id.songName || similarSong?.songName);
+  const artistName = cleanDisplayName(song?.id.songArtist || similarSong?.artist);
+  const similarityLabel = similarSong ? formatSimilarity(similarSong.similarity) : '';
+  const similarityText = similarityLabel ? ` • ${similarityLabel}` : '';
 
   return (
     <TouchableOpacity
       style={[styles.container, isSelected && styles.selectedContainer, style]}
       onPress={onPress}
-      activeOpacity={0.7}
+      disabled={!onPress}
+      activeOpacity={0.6}
+      accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityLabel={`${songName}, ${artistName}${similarityText}`}
     >
       <View style={styles.iconContainer}>
         <Text style={styles.musicNoteIcon}>♪</Text>
@@ -70,7 +75,7 @@ export const SongItem: React.FC<SongItemProps> = ({
       </View>
       <View style={styles.actionContainer}>
         <Text style={[styles.actionIcon, isSelected && styles.selectedActionIcon]}>
-          {similarSong ? '★' : isSelected ? '✓' : '➜'}
+          {similarSong ? (onPress ? '▶' : '★') : isSelected ? '✓' : '▶'}
         </Text>
       </View>
     </TouchableOpacity>

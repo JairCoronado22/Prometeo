@@ -1,159 +1,174 @@
-# Prometeo (Cliente React Native)
+# Prometeo — App móvil (React Native)
 
-Prometeo es una aplicación móvil cliente de recomendación musical desarrollada con React Native y TypeScript. Se conecta a un servicio REST en Spring Boot (Java) para identificar usuarios, consultar el catálogo y las recomendaciones similares procesadas por Machine Learning, y registrar selecciones en el historial.
+App Android de recomendación musical. Muestra el catálogo de canciones, busca por nombre o artista, reproduce canciones y recomienda canciones parecidas usando el modelo de Machine Learning del backend (Spring Boot). También recomienda canciones al azar por notificación (botón 🎲 o agitando el teléfono) y sugiere canciones según tu ubicación.
 
----
-
-## Arquitectura y Tecnologías
-
-- Framework Móvil: React Native (v0.74.5)
-- Lenguaje: TypeScript
-- Navegación: React Navigation (Native Stack)
-- Gestión de Estado: React Context API (AuthContext)
-- Custom Hooks: useLocation para geolocalización, useAuth para sesión, useShake para sensor de movimiento
-- Notificaciones Locales / Push: Notificaciones nativas con canal de alta prioridad (songfinder-channel), vibración háptica y avisos en segundo plano al estar listas las recomendaciones
-- Permisos de Android: Permisos en tiempo de ejecución para ubicación (ACCESS_FINE_LOCATION, ACCESS_COARSE_LOCATION) y notificaciones (POST_NOTIFICATIONS en Android 13+)
-- Sensores: Acelerómetro para descubrir canciones similares al agitar el dispositivo
-- Persistencia Local: @react-native-async-storage/async-storage
-- Geolocalización: PermissionsAndroid + GPS Nativo / IP API fallback
-- Cliente HTTP: Fetch API nativa con AbortController (timeout de 2.2s para respuesta instantánea) y fallback multi-IP (localhost, 10.0.2.2, IP local)
-- Backend Integrado: Spring Boot + PostgreSQL (Apolo / prometeo en rama feat-notif)
+El backend (API REST) está en el repositorio **Prometeo-Backend**.
 
 ---
 
-## Requisitos del Sistema
+## Funcionalidades
 
-Para ejecutar el proyecto cliente y conectarlo con el servidor backend:
-
-- Node.js: v18.0.0 o superior
-- JDK (Java Development Kit): Java 17
-- Android Studio: Con SDK de Android (API 33+) y un emulador (AVD) o dispositivo físico conectado por USB con depuración activada.
-- Servidor Backend: Proyecto Apolo (Spring Boot) corriendo en http://localhost:8080 (rama feat-notif).
+- **Catálogo**: las 20 canciones más populares; toda la pantalla hace scroll y se recarga deslizando hacia abajo.
+- **Búsqueda**: busca en el backend mientras escribes (máx. 20 resultados), con botón ✕ para limpiar.
+- **Reproductor**:
+  - Las **10 primeras canciones del catálogo suenan de verdad** (MP3 incluidos en la app): barra arrastrable sincronizada, ±10 s, pausa/reanudar.
+  - El resto de canciones usa una **vista previa simulada** (misma barra y controles, sin audio).
+  - Debajo de los controles: **"A continuación · Recomendadas"** (cola de 20 canciones parecidas, como en Spotify). Tocar una la reproduce y carga su propia cola.
+  - El botón Atrás de Android cierra el reproductor.
+- **🎲 Recomiéndame una canción** (pantalla principal) o **agitar el teléfono** (en cualquier pantalla): elige una canción al azar y la envía como notificación; al tocarla se abre en el reproductor.
+- **Notificaciones**: bienvenida al entrar y "🎲 Te recomendamos…". Si falta el permiso, la tarjeta muestra "Activar".
+- **Canciones de tu zona**: con permiso de ubicación, una barra plegable (▸/▾) con hasta 10 sugerencias locales; recuerda si la dejaste abierta.
+- **Historial** local (AsyncStorage) y sincronizado con el backend para usuarios con nombre.
+- **Sin conexión**: aviso con botón "Reintentar" y canciones de ejemplo.
 
 ---
 
-## Estructura del Proyecto
+## Tecnologías
+
+| | |
+|---|---|
+| Framework | React Native 0.74.5 (arquitectura antigua, `newArchEnabled=false`), TypeScript |
+| Navegación | React Navigation (native stack) |
+| Estado | React Context (`AuthContext`) |
+| Audio | `react-native-sound` (MP3 empaquetados como recursos `raw`) |
+| Notificaciones | `react-native-push-notification` (locales, canal `songfinder-channel`) |
+| Sensores | `react-native-sensors` (acelerómetro) |
+| Ubicación | `@react-native-community/geolocation` + respaldo por IP |
+| Persistencia | `@react-native-async-storage/async-storage` |
+| Tests | Vitest |
+
+---
+
+## Requisitos
+
+- **Node.js 18+**
+- **JDK 17 o 21** (probado con JBR 21). Gradle wrapper 8.6.
+- **Android SDK** con licencias aceptadas (Gradle descarga solo la plataforma 34, build-tools 34, NDK y CMake que falten).
+- Un teléfono Android con **depuración USB o inalámbrica**, o un emulador.
+- La carpeta **`Canciones/`** con los MP3 (ver más abajo).
+
+> No pongas `org.gradle.java.home` en `android/gradle.properties` con rutas de tu PC: rompe el build en otras máquinas. Usa `JAVA_HOME`.
+
+---
+
+## Estructura
 
 ```
-prometeo/
-├── App.tsx                     # Punto de entrada de la aplicación
-├── app.json                    # Configuración y nombre oficial de la app
-├── package.json                # Dependencias del proyecto
-├── tsconfig.json               # Configuración de TypeScript
-├── android/                    # Proyecto nativo de Android
+Prometeo-Frontend/
+├── App.tsx
+├── Canciones/                        # MP3 locales "Nombre - Artista.mp3" (ver aviso)
+├── android/                          # Proyecto nativo
+├── tests/                            # Vitest
 └── src/
-    ├── api/
-    │   └── apoloApi.ts         # Cliente REST API (comunicación con Spring Boot)
+    ├── api/apoloApi.ts               # Cliente REST: CLOUD_URL, límites, timeout 2,2 s y URLs de respaldo
     ├── components/
-    │   ├── LocationBanner.tsx  # Ubicación detectada y sugerencias locales
-    │   ├── NotificationPermissionCard.tsx # Permiso Android para notificaciones
-    │   └── SongItem.tsx        # Tarjeta reutilizable para canciones
-    ├── context/
-    │   └── AuthContext.tsx     # Contexto global de sesión de usuario
+    │   ├── LocationBanner.tsx        # Permiso de ubicación / barra plegable "Canciones de tu zona"
+    │   ├── NotificationPermissionCard.tsx  # Permiso de notificaciones + 🎲
+    │   ├── SeekBar.tsx               # Barra de progreso arrastrable
+    │   └── SongItem.tsx
+    ├── context/AuthContext.tsx
+    ├── data/
+    │   ├── localSongs.ts             # Lista fija de "Canciones de tu zona"
+    │   └── localTracks.ts            # Canción del catálogo → MP3 de /Canciones
     ├── hooks/
-    │   ├── useLocation.ts      # Hook personalizado para geolocalización
-    │   └── useShake.ts         # Detecta sacudidas con el acelerómetro
-    ├── navigation/
-    │   └── AppNavigator.tsx    # Configuración de rutas (Stack Navigator)
-    ├── screens/
-    │   ├── LoginScreen.tsx     # Identificación y registro automático
-    │   ├── MainScreen.tsx      # Exploración, catálogo y recomendaciones ML
-    │   └── HistoryScreen.tsx   # Historial local persistente
-    ├── services/
-    │   ├── historyStorage.ts   # Persistencia local con AsyncStorage
-    │   ├── locationService.ts  # Geolocalización nativa GPS / IP
-    │   ├── localNotificationService.ts # Gestor de notificaciones nativas y push
-    │   └── notificationPermissionService.ts # Permiso de notificaciones Android
-    └── types/
-        └── index.ts            # Interfaces y tipos de TypeScript
+    │   ├── usePlayback.ts            # Reproducción real (MP3) o simulada
+    │   ├── useLocation.ts
+    │   └── useShake.ts
+    ├── navigation/AppNavigator.tsx
+    ├── screens/                      # Login, Main (catálogo + reproductor), History
+    ├── services/                     # Notificaciones, ubicación, historial, permisos
+    ├── types/index.ts
+    └── utils/songDisplay.ts          # Formato de nombres, % de similitud, elección al azar
 ```
 
 ---
 
-## Guía de Ejecución Paso a Paso (Para el Equipo)
+## Configuración
 
-### 1. Iniciar el Servidor Backend (Spring Boot)
+En `src/api/apoloApi.ts`:
 
-En la carpeta del proyecto backend Apolo/prometeo:
+| Constante | Uso |
+|---|---|
+| `CLOUD_URL` | URL pública del backend (Railway). Se prueba primero; vacía = solo URLs locales. |
+| `BASE_URLS` | Respaldo local: `localhost:8080`, `10.0.2.2:8080` (emulador), IP de la LAN. |
+| `MAIN_MENU_LIMIT` = 20 | Canciones del menú principal. |
+| `SEARCH_LIMIT` = 20 | Resultados de búsqueda y recomendadas. |
+| `LOCAL_SONGS_LIMIT` = 10 | Canciones de la zona. |
 
-```powershell
-# 1. Entrar a la carpeta del backend
-cd C:\ruta\a\prometeo
+Cada petición se corta a los **2,2 s** y pasa a la siguiente URL.
 
-# 2. Cambiar a la rama de desarrollo
-git checkout feat-notif
-git pull origin feat-notif
+### Audio local (`Canciones/`)
 
-# 3. Ejecutar el servidor (escucha en http://localhost:8080)
-$env:JAVA_HOME="C:\ruta\a\jdk-17"
-.\gradlew.bat bootRun
-```
-Asegúrate de que PostgreSQL esté corriendo en el puerto 5432 con la base de datos prometeo.
+Los MP3 se empaquetan dentro del APK (~30 MB). La correspondencia con el catálogo está en `src/data/localTracks.ts`; la clave es el nombre **tal como viene del backend** (algunos archivos se llaman distinto, p. ej. `Tusa - Karol G.mp3` ↔ `Tusa` / `KAROL G`).
 
----
+Para añadir una canción: copia el `.mp3` a `Canciones/` y agrega una línea en `localTracks.ts`.
 
-### 2. Configurar la Conexión USB del Celular / Emulador
-
-Conecta tu teléfono físico por cable USB y verifica la conexión:
-
-```powershell
-# 1. Verificar que el dispositivo aparezca autorizado ("device")
-adb devices
-
-# 2. Redirigir puertos para conectar el teléfono con la PC
-adb reverse tcp:8080 tcp:8080
-adb reverse tcp:8081 tcp:8081
-```
+> ⚠️ Son canciones con derechos de autor: **no las subas a un repositorio público** ni publiques el APK. Si `Canciones/` no está en el repo, cópiala antes de compilar; si falta un archivo referenciado en `localTracks.ts`, el build falla.
 
 ---
 
-### 3. Iniciar el Cliente React Native (Prometeo)
-
-En la carpeta del proyecto frontend react-native-songfinder:
+## Desarrollo
 
 ```powershell
-# 1. Entrar a la carpeta del cliente móvil
-cd C:\ruta\a\react-native-songfinder
-
-# 2. Asegurarse de estar en la rama principal
-git checkout main
-git pull origin main
-
-# 3. Iniciar Metro Bundler
+npm install
 npx react-native start
 ```
 
----
-
-### 4. Compilar y Abrir la App en el Celular
-
-En una terminal adicional:
+En otra terminal, con el teléfono conectado:
 
 ```powershell
+adb devices
+adb reverse tcp:8081 tcp:8081    # Metro
+adb reverse tcp:8080 tcp:8080    # solo si usas el backend local
 npx react-native run-android
 ```
 
 ---
 
-## Endpoints REST Consumidos
+## Generar e instalar el APK (release)
 
-La aplicación interactúa con los siguientes endpoints del backend Spring Boot (src/api/apoloApi.ts):
+```powershell
+$env:JAVA_HOME = "C:\ruta\a\jdk-21"; $env:Path = "$env:JAVA_HOME\bin;$env:Path"
+cd android
+.\gradlew.bat assembleRelease
+adb install -r app\build\outputs\apk\release\app-release.apk
+```
 
-| Método | Endpoint | Descripción |
-| :--- | :--- | :--- |
-| GET | /api/users/{username} | Consulta si un usuario ya existe en la base de datos. |
-| POST | /api/users | Registra un nuevo usuario si no existía previamente. |
-| GET | /api/songs | Obtiene el catálogo completo de canciones desde PostgreSQL. |
-| GET | /api/songs/similar?artist={artist}&songName={songName} | Obtiene recomendaciones de canciones similares procesadas por el modelo de Machine Learning. |
-| POST | /api/listening-history | Registra la selección escuchada en la base de datos del backend. |
-| GET | /api/listening-history/user/{username} | Obtiene el historial guardado de un usuario. |
-| POST | /api/notifications/register-token | Registra el token del dispositivo para notificaciones. |
+- APK: `android/app/build/outputs/apk/release/app-release.apk` (~84 MB con los MP3).
+- La primera compilación tarda ~7 min (descarga NDK/CMake); las siguientes, < 1 min.
+- El `release` se firma con `android/app/debug.keystore`: sirve para instalar por adb y para demos, **no para Play Store**.
 
 ---
 
-## Funcionamiento de Notificaciones y Sensores
+## Tests
 
-- Notificaciones Push / Locales: Al seleccionar una canción o agitar el teléfono, las recomendaciones se procesan en segundo plano. Cuando los temas similares están listos, la app dispara una Notificación Nativa de Android (Recomendaciones listas) con sonido y vibración.
-- Modo Seguro: La app valida los módulos nativos y utiliza un sistema de degradación suave (fallback), garantizando que nunca se produzcan caídas ni avisos emergentes en pantalla.
-- Acelerómetro (Gesto Shake): Al agitar el teléfono en la pantalla principal, la app vibra (Vibration.vibrate(80)) y consulta nuevas canciones recomendadas.
-- Geolocalización Híbrida: Detecta la posición mediante GPS o IP (http://ip-api.com/json), ofreciendo sugerencias por ciudad (ej: Lima, Perú).
+```powershell
+npx tsc --noEmit -p .
+npx vitest run
+```
+
+- `tests/songDisplay.test.ts`: formato de nombres, porcentaje de similitud, elección al azar, correspondencia de nombres de MP3.
+- `tests/apoloApi.test.ts`: **2 tests desactualizados** (esperan `fetch` sin `AbortController` y una sola URL); fallan desde antes de los cambios actuales.
+
+---
+
+## Endpoints que usa la app
+
+| Método | Endpoint | Uso |
+|---|---|---|
+| GET | `/api/songs?limit=20` | Menú principal (y `limit=50` para el 🎲). |
+| GET | `/api/songs/search?q=…&limit=20` | Búsqueda. |
+| GET | `/api/songs/similar?artist=…&songName=…&limit=20` | Cola de recomendadas. |
+| GET / POST | `/api/users/{username}` / `/api/users` | Login / registro automático. |
+| GET / POST / DELETE | `/api/listening-history…` | Historial. |
+| POST / DELETE | `/api/notifications/register-token`, `/unregister-token` | Token del dispositivo. |
+| POST | `/api/notifications/send-song` | Registro en el log de cada recomendación 🎲. |
+
+---
+
+## Problemas conocidos
+
+- **Similitud ≈ 99 % en casi todo**: el modelo del backend no normaliza las variables (`tempo` y duración dominan).
+- **Canciones de tu zona**: lista fija de 4 canciones que no están en el catálogo del backend; sus recomendadas salen de una lista de respaldo.
+- **Primera petición lenta en algunas redes**: si el DNS del router tarda en responder consultas IPv6, la primera llamada puede pasar de 2,2 s. En el teléfono: Ajustes → Red → DNS privado → `dns.google`.
+- **Agitar** depende del acelerómetro; en emuladores puede no estar disponible (la app lo indica).

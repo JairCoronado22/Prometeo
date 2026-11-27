@@ -11,24 +11,44 @@ import {
   StatusBar,
   Alert,
   Vibration,
+  RefreshControl,
+  BackHandler,
+  ScrollView,
 } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList, Song, SimilarSongDTO, ListeningHistory } from '../types';
-import { apoloApi } from '../api/apoloApi';
+import { apoloApi, MAIN_MENU_LIMIT, SEARCH_LIMIT, LOCAL_SONGS_LIMIT } from '../api/apoloApi';
 import { historyStorage } from '../services/historyStorage';
 import { SongItem, isValidSong, isValidSimilarSong } from '../components/SongItem';
 import { LocationBanner } from '../components/LocationBanner';
 import { useLocation } from '../hooks/useLocation';
 import { useShake } from '../hooks/useShake';
-import { formatLocationLabel } from '../services/locationService';
 import { useAuth } from '../context/AuthContext';
 import { NotificationPermissionCard } from '../components/NotificationPermissionCard';
 import { localNotificationService } from '../services/localNotificationService';
+import { LOCAL_ZONE_SONGS } from '../data/localSongs';
+import { cleanDisplayName, pickRandomSong, songKey } from '../utils/songDisplay';
+import { findLocalTrack } from '../data/localTracks';
+import { usePlayback } from '../hooks/usePlayback';
+import { SeekBar } from '../components/SeekBar';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Main'>;
 
-const formatPlaybackTime = (seconds: number): string => {
+/** Filas de la lista única que hace scroll en toda la pantalla. */
+type Row =
+  | { type: 'title'; key: string; text: string }
+  | { type: 'song'; key: string; song: Song }
+  | { type: 'similar'; key: string; similar: SimilarSongDTO }
+  | { type: 'skeleton'; key: string }
+  | { type: 'offline'; key: string }
+  | { type: 'loadingRecs'; key: string }
+  | { type: 'empty'; key: string; text: string };
+
+const RANDOM_POOL_SIZE = 50;
+
+const formatPlaybackTime = (rawSeconds: number): string => {
+  const seconds = Math.max(0, Math.floor(rawSeconds));
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = seconds % 60;
   return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
@@ -43,52 +63,55 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
   const [similarSongs, setSimilarSongs] = useState<SimilarSongDTO[]>([]);
   const [selectedSong, setSelectedSong] = useState<Song | null>(null);
   const [isPlayerExpanded, setIsPlayerExpanded] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [playbackPosition, setPlaybackPosition] = useState(0);
-  const [isLocationMode, setIsLocationMode] = useState(false);
+  // Se incrementa en cada selección para que volver a tocar la misma canción la reinicie.
+  const [selectionNonce, setSelectionNonce] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
+  const [catalogOffline, setCatalogOffline] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [recommending, setRecommending] = useState(false);
+  const [lastRecommendation, setLastRecommendation] = useState<Song | null>(null);
 
   const { location, loadingLocation, refreshLocation } = useLocation();
   const searchInputRef = useRef<TextInput>(null);
   const isScreenFocused = useIsFocused();
   const recommendationsRequestId = useRef(0);
-  const playbackDurationSeconds = selectedSong?.durationMs
+  const searchRequestId = useRef(0);
+  const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fallbackDurationSeconds = selectedSong?.durationMs
     ? Math.max(1, Math.floor(selectedSong.durationMs / 1000))
     : 210;
+
+  // Audio real si la canción tiene MP3 en /Canciones; si no, vista previa simulada.
+  const localAsset = selectedSong
+    ? findLocalTrack(selectedSong.id.songName, selectedSong.id.songArtist)
+    : null;
+  const playback = usePlayback(
+    selectedSong ? `${songKey(selectedSong)}#${selectionNonce}` : null,
+    localAsset,
+    fallbackDurationSeconds
+  );
+  const isPlaying = playback.isPlaying;
+  const playbackPosition = playback.position;
+  const playbackDurationSeconds = Math.max(1, playback.duration);
 
   useEffect(() => {
     fetchAllSongs();
   }, []);
 
-  useEffect(() => {
-    if (!selectedSong || !isPlaying || playbackPosition >= playbackDurationSeconds) {
-      return;
+  const fetchAllSongs = async (showSpinner = true) => {
+    if (showSpinner) {
+      setLoading(true);
     }
-
-    const timer = setTimeout(() => {
-      setPlaybackPosition((position) => Math.min(position + 1, playbackDurationSeconds));
-    }, 1000);
-
-    return () => clearTimeout(timer);
-  }, [selectedSong, isPlaying, playbackPosition, playbackDurationSeconds]);
-
-  useEffect(() => {
-    if (playbackPosition >= playbackDurationSeconds) {
-      setIsPlaying(false);
-    }
-  }, [playbackPosition, playbackDurationSeconds]);
-
-  const fetchAllSongs = async () => {
-    setLoading(true);
     try {
-      const data = await apoloApi.getAllSongs();
+      const data = await apoloApi.getAllSongs(MAIN_MENU_LIMIT);
       if (data && data.length > 0) {
         const validSongs = data.filter(isValidSong);
         if (validSongs.length > 0) {
           setAllSongs(validSongs);
           setFilteredSongs(validSongs);
+          setCatalogOffline(false);
         } else {
           useFallbackSongs();
         }
@@ -98,9 +121,17 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
     } catch (error) {
       console.log('No se pudo leer el catálogo de Apolo, usando fallback:', error);
       useFallbackSongs();
+      setCatalogOffline(true);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    setSearchQuery('');
+    await Promise.all([fetchAllSongs(false), refreshLocation()]);
+    setRefreshing(false);
   };
 
   const useFallbackSongs = () => {
@@ -154,29 +185,76 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
     }
   }, []);
 
+  // Búsqueda en el backend (LIMIT 20 en SQL). Mientras responde se muestra el filtro local.
+  const runRemoteSearch = useCallback(async (query: string) => {
+    const cleaned = query.trim();
+    const requestId = ++searchRequestId.current;
+    if (cleaned.length < 2) {
+      return;
+    }
+    try {
+      const results = await apoloApi.searchSongs(cleaned, SEARCH_LIMIT);
+      if (requestId !== searchRequestId.current) {
+        return;
+      }
+      setFilteredSongs(results.filter(isValidSong).slice(0, SEARCH_LIMIT));
+    } catch (error) {
+      console.log('Búsqueda remota no disponible, se mantiene el filtro local:', error);
+    }
+  }, []);
+
+  const scheduleRemoteSearch = (query: string, delayMs: number) => {
+    searchRequestId.current += 1; // invalida respuestas de búsquedas anteriores
+    if (searchDebounce.current) {
+      clearTimeout(searchDebounce.current);
+    }
+    searchDebounce.current = setTimeout(() => runRemoteSearch(query), delayMs);
+  };
+
+  useEffect(() => () => {
+    if (searchDebounce.current) {
+      clearTimeout(searchDebounce.current);
+    }
+  }, []);
+
   const handleSearchTextChange = (text: string) => {
     setSearchQuery(text);
     filterSongsByQuery(text, allSongs);
+    scheduleRemoteSearch(text, 350);
+  };
+
+  const handleSearchSubmit = () => {
+    filterSongsByQuery(searchQuery, allSongs);
+    scheduleRemoteSearch(searchQuery, 0);
+  };
+
+  const handleClearSearch = () => {
+    searchRequestId.current += 1;
+    if (searchDebounce.current) {
+      clearTimeout(searchDebounce.current);
+    }
+    setSearchQuery('');
+    setFilteredSongs(allSongs);
+    searchInputRef.current?.focus();
   };
 
   const visibleSongs = useMemo(() => {
     if (searchQuery.trim() !== '') {
-      return filteredSongs;
+      return filteredSongs.slice(0, SEARCH_LIMIT);
     }
-    return filteredSongs.slice(0, 30);
+    return filteredSongs.slice(0, MAIN_MENU_LIMIT);
   }, [filteredSongs, searchQuery]);
 
-  const catalogLabel = 'CATÁLOGO DE CANCIONES';
+  const catalogLabel =
+    searchQuery.trim() !== ''
+      ? `RESULTADOS PARA “${searchQuery.trim().toUpperCase()}”`
+      : 'CATÁLOGO DE CANCIONES';
 
-  const recommendationsLabel = useMemo(() => {
-    if (isLocationMode) {
-      return `SUGERENCIAS LOCALES: ${formatLocationLabel(location).toUpperCase()}`;
-    }
-    if (selectedSong) {
-      return `RECOMENDACIONES PARA: ${selectedSong.id.songName.toUpperCase()}`;
-    }
-    return 'CANCIONES RECOMENDADAS';
-  }, [selectedSong, isLocationMode, location]);
+  const queueSummary = loadingRecommendations
+    ? 'Buscando recomendadas…'
+    : similarSongs.length > 0
+      ? `Ver ${similarSongs.length} recomendadas ›`
+      : 'Abrir reproductor ›';
 
   const saveToHistoryAndBackend = async (song: Song) => {
     try {
@@ -219,25 +297,17 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
         return;
       }
 
-      let countFound = 4;
+      // Las recomendadas se muestran en la cola del reproductor; ya no se avisa por notificación.
       if (similar && similar.length > 0) {
         const validSimilar = similar.filter(isValidSimilarSong);
         if (validSimilar.length > 0) {
           setSimilarSongs(validSimilar);
-          countFound = validSimilar.length;
-          Vibration.vibrate(80);
         } else {
           useFallbackSimilarSongs(song);
         }
       } else {
         useFallbackSimilarSongs(song);
       }
-
-      localNotificationService.sendRecommendationsReadyNotification(
-        song.id.songName,
-        countFound,
-        username
-      );
     } catch (error) {
       if (requestId !== recommendationsRequestId.current) {
         return;
@@ -245,12 +315,6 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
 
       console.log('Respuesta rápida de recomendaciones:', error);
       useFallbackSimilarSongs(song);
-
-      localNotificationService.sendRecommendationsReadyNotification(
-        song.id.songName,
-        4,
-        username
-      );
     } finally {
       if (requestId === recommendationsRequestId.current) {
         setLoadingRecommendations(false);
@@ -300,84 +364,105 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
   };
 
   const handleSelectSong = (song: Song) => {
-    setIsLocationMode(false);
+    Vibration.vibrate(20);
     setSelectedSong(song);
     setIsPlayerExpanded(true);
-    setPlaybackPosition(0);
-    setIsPlaying(true);
+    setSelectionNonce((n) => n + 1); // usePlayback reinicia y empieza a sonar
     saveToHistoryAndBackend(song);
     fetchSimilarSongs(song);
   };
 
+  // Agitar el teléfono = "🎲 Recomiéndame una canción" (en la pantalla principal y en el reproductor).
   const handleShake = () => {
-    if (loadingRecommendations) {
+    if (recommending) {
       return;
     }
+    void handleRandomRecommendation();
+  };
 
-    if (!selectedSong) {
-      Alert.alert(
-        'Descubre canciones',
-        'Selecciona primero una canción del catálogo y luego agita el teléfono.'
+  const shakeSensorAvailable = useShake(handleShake, isScreenFocused);
+
+  // "Canciones de tu zona": al tocar una, se abre en el reproductor como cualquier otra.
+  const handleSelectLocalSong = (local: SimilarSongDTO) => {
+    handleSelectSong({
+      id: { songName: local.songName, songArtist: local.artist },
+      songPopularity: local.popularity,
+      durationMs: local.durationSeconds * 1000,
+    });
+  };
+
+  // 🎲 Recomiéndame una canción: elige una al azar del backend y la envía como notificación.
+  const handleRandomRecommendation = async () => {
+    setRecommending(true);
+    try {
+      let pool: Song[] = [];
+      try {
+        const query = searchQuery.trim();
+        const fromBackend =
+          query.length >= 2
+            ? await apoloApi.searchSongs(query, SEARCH_LIMIT)
+            : await apoloApi.getAllSongs(RANDOM_POOL_SIZE);
+        pool = fromBackend.filter(isValidSong);
+      } catch (error) {
+        console.log('Recomendación al azar sin backend, usando el catálogo cargado:', error);
+      }
+      if (pool.length === 0) {
+        pool = allSongs;
+      }
+
+      const pick = pickRandomSong(pool, lastRecommendation ? songKey(lastRecommendation) : null);
+      if (!pick) {
+        Alert.alert('Sin canciones', 'No hay canciones disponibles para recomendar ahora mismo.');
+        return;
+      }
+
+      setLastRecommendation(pick);
+      Vibration.vibrate(60);
+      localNotificationService.sendSongRecommendationNotification(
+        cleanDisplayName(pick.id.songName),
+        cleanDisplayName(pick.id.songArtist),
+        username
       );
+    } finally {
+      setRecommending(false);
+    }
+  };
+
+  // El botón "atrás" de Android cierra el reproductor grande en vez de salir de la app.
+  useEffect(() => {
+    if (!isPlayerExpanded) {
       return;
     }
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      setIsPlayerExpanded(false);
+      return true;
+    });
+    return () => subscription.remove();
+  }, [isPlayerExpanded]);
 
-    setIsLocationMode(false);
-    setIsPlaying(false);
-    fetchSimilarSongs(selectedSong);
-  };
+  // Bienvenida por notificación al entrar (una vez por inicio de sesión).
+  useEffect(() => {
+    localNotificationService.sendWelcomeNotification(username);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const shakeSensorAvailable = useShake(
-    handleShake,
-    isScreenFocused && !isPlayerExpanded
-  );
+  // Al cambiar de canción, la vista del reproductor vuelve arriba.
+  const playerScrollRef = useRef<ScrollView>(null);
+  useEffect(() => {
+    playerScrollRef.current?.scrollTo({ y: 0, animated: true });
+  }, [selectedSong]);
 
-  const handleRecommendByLocation = () => {
-    recommendationsRequestId.current += 1;
-    setSelectedSong(null);
-    setIsPlayerExpanded(false);
-    setIsPlaying(false);
-    setIsLocationMode(true);
-    setLoadingRecommendations(false);
-    setSimilarSongs([
-      {
-        songName: 'Cariñito',
-        artist: 'Los Hijos del Sol',
-        durationSeconds: 215,
-        genres: ['cumbia'],
-        subgenres: ['cumbia-peruana'],
-        popularity: 98,
-        similarity: 0.98,
-      },
-      {
-        songName: 'Contigo Perú',
-        artist: 'Arturo Zambo Cavero',
-        durationSeconds: 200,
-        genres: ['criollo'],
-        subgenres: ['vals-peruano'],
-        popularity: 96,
-        similarity: 0.95,
-      },
-      {
-        songName: 'A Través del Vaso',
-        artist: 'Grupo 5',
-        durationSeconds: 220,
-        genres: ['cumbia'],
-        subgenres: ['cumbia-norteña'],
-        popularity: 92,
-        similarity: 0.91,
-      },
-      {
-        songName: 'El Cervecero',
-        artist: 'Armonía 10',
-        durationSeconds: 210,
-        genres: ['cumbia'],
-        subgenres: ['cumbia-peruana'],
-        popularity: 90,
-        similarity: 0.89,
-      },
-    ]);
-  };
+  // Al tocar la notificación de recomendación se abre esa canción.
+  const handleSelectSongRef = useRef(handleSelectSong);
+  handleSelectSongRef.current = handleSelectSong;
+  useEffect(() => {
+    localNotificationService.setNotificationTapHandler((payload) => {
+      handleSelectSongRef.current({
+        id: { songName: payload.songName, songArtist: payload.songArtist },
+      });
+    });
+    return () => localNotificationService.setNotificationTapHandler(null);
+  }, []);
 
   if (selectedSong && isPlayerExpanded) {
     return (
@@ -394,121 +479,295 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
           >
             <Text style={styles.collapseButtonIcon}>⌄</Text>
           </TouchableOpacity>
-          <Text style={styles.fullPlayerEyebrow}>VISTA PREVIA SIMULADA</Text>
+          <Text style={[styles.fullPlayerEyebrow, playback.isReal && styles.fullPlayerEyebrowReal]}>
+            {playback.isReal ? 'REPRODUCIENDO' : 'VISTA PREVIA SIMULADA'}
+          </Text>
           <View style={styles.headerButtonSpacer} />
         </View>
 
-        <View style={styles.fullPlayerArtworkArea}>
-          <View style={styles.fullPlayerArtwork}>
-            <Text style={styles.fullPlayerArtworkIcon}>♫</Text>
+        <ScrollView
+          ref={playerScrollRef}
+          contentContainerStyle={styles.fullPlayerScroll}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.fullPlayerArtworkArea}>
+            <View style={styles.fullPlayerArtwork}>
+              <Text style={styles.fullPlayerArtworkIcon}>♫</Text>
+            </View>
           </View>
-        </View>
 
-        <View style={styles.fullPlayerInfo}>
-          <Text style={styles.fullPlayerSongName} numberOfLines={2}>
-            {selectedSong.id.songName}
-          </Text>
-          <Text style={styles.fullPlayerArtist} numberOfLines={1}>
-            {selectedSong.id.songArtist}
-          </Text>
-          <Text style={styles.playerDisclaimer}>
-            Esta versión no reproduce audio; los controles solo muestran una vista previa.
-          </Text>
-        </View>
-
-        <View style={styles.fullPlayerProgress}>
-          <View style={styles.progressTrack}>
-            <View
-              style={[
-                styles.progressFill,
-                { width: `${(playbackPosition / playbackDurationSeconds) * 100}%` },
-              ]}
-            />
-          </View>
-          <View style={styles.playerFooter}>
-            <Text style={styles.playerTime}>{formatPlaybackTime(playbackPosition)}</Text>
-            <Text style={styles.playerTime}>
-              {formatPlaybackTime(playbackDurationSeconds)}
+          <View style={styles.fullPlayerInfo}>
+            <Text style={styles.fullPlayerSongName} numberOfLines={2}>
+              {cleanDisplayName(selectedSong.id.songName)}
             </Text>
+            <Text style={styles.fullPlayerArtist} numberOfLines={1}>
+              {cleanDisplayName(selectedSong.id.songArtist)}
+            </Text>
+            {playback.loading ? (
+              <Text style={styles.playerDisclaimer}>Cargando audio…</Text>
+            ) : playback.isReal ? (
+              <Text style={[styles.playerDisclaimer, styles.playerAudioReal]}>🎧 Audio incluido en la app</Text>
+            ) : (
+              <Text style={styles.playerDisclaimer}>
+                Vista previa: esta canción no tiene audio en la app, solo se simula la reproducción.
+              </Text>
+            )}
           </View>
-        </View>
 
-        <View style={styles.fullPlayerControls}>
-          <TouchableOpacity
-            onPress={() => setPlaybackPosition((position) => Math.max(0, position - 10))}
-            accessibilityRole="button"
-            accessibilityLabel="Retroceder 10 segundos"
-            hitSlop={12}
-          >
-            <Text style={styles.fullPlayerSkipControl}>−10</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.fullPlayerPlayButton}
-            onPress={() => setIsPlaying((playing) => !playing)}
-            accessibilityRole="button"
-            accessibilityLabel={isPlaying ? 'Pausar' : 'Reproducir'}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.fullPlayerPlayButtonIcon}>{isPlaying ? 'Ⅱ' : '▶'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() =>
-              setPlaybackPosition((position) =>
-                Math.min(playbackDurationSeconds, position + 10)
-              )
-            }
-            accessibilityRole="button"
-            accessibilityLabel="Avanzar 10 segundos"
-            hitSlop={12}
-          >
-            <Text style={styles.fullPlayerSkipControl}>+10</Text>
-          </TouchableOpacity>
-        </View>
+          <View style={styles.fullPlayerProgress}>
+            <SeekBar
+              position={playbackPosition}
+              duration={playbackDurationSeconds}
+              onSeek={playback.seekTo}
+            />
+            <View style={styles.playerFooter}>
+              <Text style={styles.playerTime}>{formatPlaybackTime(playbackPosition)}</Text>
+              <Text style={styles.playerTime}>
+                {formatPlaybackTime(playbackDurationSeconds)}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.fullPlayerControls}>
+            <TouchableOpacity
+              onPress={() => playback.skip(-10)}
+              accessibilityRole="button"
+              accessibilityLabel="Retroceder 10 segundos"
+              hitSlop={12}
+            >
+              <Text style={styles.fullPlayerSkipControl}>−10</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.fullPlayerPlayButton}
+              onPress={playback.toggle}
+              disabled={playback.loading}
+              accessibilityRole="button"
+              accessibilityLabel={isPlaying ? 'Pausar' : 'Reproducir'}
+              activeOpacity={0.8}
+            >
+              {playback.loading ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.fullPlayerPlayButtonIcon}>{isPlaying ? 'Ⅱ' : '▶'}</Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => playback.skip(10)}
+              accessibilityRole="button"
+              accessibilityLabel="Avanzar 10 segundos"
+              hitSlop={12}
+            >
+              <Text style={styles.fullPlayerSkipControl}>+10</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Cola: recomendadas para esta canción (como el "A continuación" de Spotify) */}
+          <View style={styles.queueHeader}>
+            <Text style={styles.queueTitle} numberOfLines={1}>
+              A CONTINUACIÓN · RECOMENDADAS
+            </Text>
+            {!loadingRecommendations && similarSongs.length > 0 && (
+              <Text style={styles.queueCount}>{similarSongs.length}</Text>
+            )}
+          </View>
+          {loadingRecommendations ? (
+            <View style={styles.recommendationsLoaderContainer}>
+              <ActivityIndicator size="small" color="#1DB954" />
+              <Text style={styles.recommendationsLoadingText}>Buscando canciones parecidas…</Text>
+            </View>
+          ) : similarSongs.length === 0 ? (
+            <Text style={styles.emptyText}>Aún no hay recomendadas para esta canción.</Text>
+          ) : (
+            similarSongs.map((similar, index) => (
+              <SongItem
+                key={`queue-${similar.songName}-${similar.artist}-${index}`}
+                similarSong={similar}
+                onPress={() =>
+                  handleSelectSong({
+                    id: { songName: similar.songName, songArtist: similar.artist },
+                    songPopularity: similar.popularity,
+                  })
+                }
+              />
+            ))
+          )}
+        </ScrollView>
       </SafeAreaView>
     );
   }
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#121212" />
+  // ---- Lista única: toda la pantalla hace scroll ----
+  const rows: Row[] = [];
+  rows.push({ type: 'title', key: 'title-catalog', text: catalogLabel });
+  if (catalogOffline && searchQuery.trim() === '') {
+    rows.push({ type: 'offline', key: 'offline' });
+  }
+  if (loading) {
+    for (let i = 0; i < 5; i++) {
+      rows.push({ type: 'skeleton', key: `skeleton-${i}` });
+    }
+  } else if (visibleSongs.length === 0) {
+    rows.push({
+      type: 'empty',
+      key: 'empty-catalog',
+      text:
+        searchQuery.trim() !== ''
+          ? `No encontramos “${searchQuery.trim()}”. Prueba con otro nombre o artista.`
+          : 'Aún no hay canciones. Desliza hacia abajo para recargar.',
+    });
+  } else {
+    visibleSongs.forEach((song, index) =>
+      rows.push({ type: 'song', key: `song-${songKey(song)}-${index}`, song })
+    );
+  }
+  // Las recomendadas viven en la cola del reproductor ("A continuación"), no al final del catálogo.
 
-      {/* Header */}
+  const renderRow = ({ item }: { item: Row }) => {
+    switch (item.type) {
+      case 'title':
+        return (
+          <Text
+            style={[styles.sectionTitle, item.key === 'title-recs' && styles.discoveriesTitle]}
+            numberOfLines={1}
+          >
+            {item.text}
+          </Text>
+        );
+      case 'song':
+        return (
+          <SongItem
+            song={item.song}
+            isSelected={
+              selectedSong?.id.songName === item.song.id.songName &&
+              selectedSong?.id.songArtist === item.song.id.songArtist
+            }
+            onPress={() => handleSelectSong(item.song)}
+          />
+        );
+      case 'similar':
+        return (
+          <SongItem
+            similarSong={item.similar}
+            onPress={() =>
+              handleSelectSong({
+                id: { songName: item.similar.songName, songArtist: item.similar.artist },
+                songPopularity: item.similar.popularity,
+              })
+            }
+          />
+        );
+      case 'skeleton':
+        return (
+          <View style={styles.skeletonRow}>
+            <View style={styles.skeletonIcon} />
+            <View style={styles.skeletonLines}>
+              <View style={styles.skeletonLineLong} />
+              <View style={styles.skeletonLineShort} />
+            </View>
+          </View>
+        );
+      case 'offline':
+        return (
+          <View style={styles.offlineCard}>
+            <Text style={styles.offlineText}>
+              📡 Sin conexión con Prometeo. Te mostramos canciones de ejemplo.
+            </Text>
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={() => void fetchAllSongs()}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Reintentar conexión"
+            >
+              <Text style={styles.retryButtonText}>Reintentar</Text>
+            </TouchableOpacity>
+          </View>
+        );
+      case 'loadingRecs':
+        return (
+          <View style={styles.recommendationsLoaderContainer}>
+            <ActivityIndicator size="small" color="#1DB954" />
+            <Text style={styles.recommendationsLoadingText}>Buscando canciones parecidas…</Text>
+          </View>
+        );
+      case 'empty':
+        return <Text style={styles.emptyText}>{item.text}</Text>;
+      default:
+        return null;
+    }
+  };
+
+  const listHeader = (
+    <View>
+      {/* Cabecera */}
       <View style={styles.headerRow}>
-        <Text style={styles.headerTitle}>Prometeo</Text>
+        <View style={styles.headerTitles}>
+          <Text style={styles.headerTitle}>Prometeo</Text>
+          <Text style={styles.greeting} numberOfLines={1}>
+            Hola, {cleanDisplayName(username)} 👋
+          </Text>
+        </View>
         <TouchableOpacity
           style={styles.historyButton}
           onPress={() => navigation.navigate('History')}
           activeOpacity={0.7}
+          accessibilityRole="button"
         >
           <Text style={styles.historyButtonText}>Historial</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Banner de Recomendaciones por Ubicación */}
+      {/* Notificaciones arriba; con permiso queda en una sola fila con 🎲 */}
+      <NotificationPermissionCard
+        onRecommend={handleRandomRecommendation}
+        recommending={recommending}
+        lastRecommendation={lastRecommendation?.id ?? null}
+        onPlayRecommendation={
+          lastRecommendation ? () => handleSelectSong(lastRecommendation) : undefined
+        }
+      />
+
+      {/* Ubicación: tarjeta para pedir permiso o barra plegable "Canciones de tu zona" */}
       <LocationBanner
         location={location}
         loading={loadingLocation}
         onRefresh={refreshLocation}
-        onRecommendByLocation={handleRecommendByLocation}
+        songs={LOCAL_ZONE_SONGS.slice(0, LOCAL_SONGS_LIMIT)}
+        onSelectSong={handleSelectLocalSong}
       />
-      <NotificationPermissionCard />
 
-      {/* Barra de Búsqueda con Filtrado en Tiempo Real */}
+      {/* Búsqueda: busca al escribir; ✕ limpia */}
       <View style={styles.searchRow}>
-        <TextInput
-          ref={searchInputRef}
-          style={styles.searchInput}
-          placeholder="Buscar canción o artista..."
-          placeholderTextColor="#707070"
-          value={searchQuery}
-          onChangeText={handleSearchTextChange}
-          returnKeyType="search"
-          onSubmitEditing={() => filterSongsByQuery(searchQuery, allSongs)}
-        />
+        <View style={styles.searchInputWrapper}>
+          <Text style={styles.searchIcon}>🔍</Text>
+          <TextInput
+            ref={searchInputRef}
+            style={styles.searchInput}
+            placeholder="Busca una canción o artista"
+            placeholderTextColor="#707070"
+            value={searchQuery}
+            onChangeText={handleSearchTextChange}
+            returnKeyType="search"
+            onSubmitEditing={handleSearchSubmit}
+            autoCorrect={false}
+          />
+          {searchQuery !== '' && (
+            <TouchableOpacity
+              style={styles.clearButton}
+              onPress={handleClearSearch}
+              accessibilityRole="button"
+              accessibilityLabel="Limpiar búsqueda"
+              hitSlop={8}
+            >
+              <Text style={styles.clearButtonText}>✕</Text>
+            </TouchableOpacity>
+          )}
+        </View>
         <TouchableOpacity
           style={styles.searchButton}
-          onPress={() => filterSongsByQuery(searchQuery, allSongs)}
+          onPress={handleSearchSubmit}
           activeOpacity={0.8}
+          accessibilityRole="button"
         >
           <Text style={styles.searchButtonText}>BUSCAR</Text>
         </TouchableOpacity>
@@ -516,40 +775,43 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
 
       <Text style={styles.shakeHint} accessibilityLiveRegion="polite">
         {shakeSensorAvailable === false
-          ? 'Acelerómetro no disponible. Puedes explorar canciones manualmente.'
-          : selectedSong
-            ? 'Agita el teléfono para descubrir canciones similares.'
-            : 'Selecciona una canción y agita el teléfono para descubrir similares.'}
+          ? 'Toca una canción para escucharla y ver sus recomendadas.'
+          : 'Toca una canción para ver sus recomendadas · 📳 Agita el teléfono y te recomendamos una al azar.'}
       </Text>
 
       {selectedSong && (
-        <View style={styles.playerCard}>
+        <TouchableOpacity
+          style={styles.playerCard}
+          onPress={() => setIsPlayerExpanded(true)}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={`Abrir reproductor de ${cleanDisplayName(selectedSong.id.songName)}`}
+        >
           <View style={styles.playerArtwork}>
             <Text style={styles.playerArtworkIcon}>♫</Text>
           </View>
           <View style={styles.playerContent}>
-            <Text style={styles.playerEyebrow}>VISTA PREVIA · SIN AUDIO</Text>
+            <Text style={styles.playerEyebrow}>
+              {playback.isReal ? '🎧 REPRODUCIENDO' : 'VISTA PREVIA · SIN AUDIO'}
+            </Text>
             <Text style={styles.playerSongName} numberOfLines={1}>
-              {selectedSong.id.songName}
+              {cleanDisplayName(selectedSong.id.songName)}
             </Text>
             <Text style={styles.playerArtist} numberOfLines={1}>
-              {selectedSong.id.songArtist}
+              {cleanDisplayName(selectedSong.id.songArtist)}
             </Text>
-            <View style={styles.progressTrack}>
-              <View
-                style={[
-                  styles.progressFill,
-                  { width: `${(playbackPosition / playbackDurationSeconds) * 100}%` },
-                ]}
-              />
-            </View>
+            <Text style={styles.queueLink}>{queueSummary}</Text>
+            <SeekBar
+              compact
+              position={playbackPosition}
+              duration={playbackDurationSeconds}
+              onSeek={playback.seekTo}
+            />
             <View style={styles.playerFooter}>
               <Text style={styles.playerTime}>{formatPlaybackTime(playbackPosition)}</Text>
               <View style={styles.playerControls}>
                 <TouchableOpacity
-                  onPress={() =>
-                    setPlaybackPosition((position) => Math.max(0, position - 10))
-                  }
+                  onPress={() => playback.skip(-10)}
                   accessibilityRole="button"
                   accessibilityLabel="Retroceder 10 segundos"
                   hitSlop={8}
@@ -558,19 +820,17 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.playButton}
-                  onPress={() => setIsPlaying((playing) => !playing)}
+                  onPress={playback.toggle}
+                  disabled={playback.loading}
                   accessibilityRole="button"
                   accessibilityLabel={isPlaying ? 'Pausar' : 'Reproducir'}
                   activeOpacity={0.8}
+                  hitSlop={8}
                 >
                   <Text style={styles.playButtonIcon}>{isPlaying ? 'Ⅱ' : '▶'}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  onPress={() =>
-                    setPlaybackPosition((position) =>
-                      Math.min(playbackDurationSeconds, position + 10)
-                    )
-                  }
+                  onPress={() => playback.skip(10)}
                   accessibilityRole="button"
                   accessibilityLabel="Avanzar 10 segundos"
                   hitSlop={8}
@@ -583,58 +843,33 @@ export const MainScreen: React.FC<Props> = ({ route, navigation }) => {
               </Text>
             </View>
           </View>
-        </View>
+        </TouchableOpacity>
       )}
+    </View>
+  );
 
-      {/* Sección 1: Catálogo de Canciones */}
-      <Text style={styles.sectionTitle}>{catalogLabel}</Text>
-
-      {loading ? (
-        <ActivityIndicator size="large" color="#1DB954" style={styles.loader} />
-      ) : (
-        <FlatList
-          data={visibleSongs}
-          keyExtractor={(item, index) => `${item.id.songName}-${item.id.songArtist}-${index}`}
-          renderItem={({ item }) => (
-            <SongItem
-              song={item}
-              isSelected={
-                selectedSong?.id.songName === item.id.songName &&
-                selectedSong?.id.songArtist === item.id.songArtist
-              }
-              onPress={() => handleSelectSong(item)}
-            />
-          )}
-          style={styles.songsList}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <Text style={styles.emptyText}>No se encontraron canciones para tu búsqueda.</Text>
-          }
-        />
-      )}
-
-      {/* Sección 2: Recomendaciones Similares con Indicador de Carga */}
-      <Text style={[styles.sectionTitle, styles.discoveriesTitle]}>{recommendationsLabel}</Text>
-
-      {loadingRecommendations ? (
-        <View style={styles.recommendationsLoaderContainer}>
-          <ActivityIndicator size="small" color="#1DB954" />
-          <Text style={styles.recommendationsLoadingText}>Procesando modelo de recomendaciones...</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={similarSongs}
-          keyExtractor={(item, index) => `${item.songName}-${item.artist}-${index}`}
-          renderItem={({ item }) => <SongItem similarSong={item} />}
-          style={styles.similarList}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <Text style={styles.emptyText}>
-              Selecciona una canción del catálogo para consultar recomendaciones en Apolo.
-            </Text>
-          }
-        />
-      )}
+  return (
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#121212" />
+      <FlatList
+        data={rows}
+        keyExtractor={(item) => item.key}
+        renderItem={renderRow}
+        ListHeaderComponent={listHeader}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => void handleRefresh()}
+            colors={['#1DB954']}
+            tintColor="#1DB954"
+            progressBackgroundColor="#1e1e1e"
+          />
+        }
+      />
     </SafeAreaView>
   );
 };
@@ -643,8 +878,139 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#121212',
+  },
+  queueHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 28,
+    marginBottom: 10,
+    paddingTop: 16,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#333333',
+  },
+  queueTitle: {
+    color: '#1DB954',
+    fontSize: 12,
+    fontWeight: 'bold',
+    letterSpacing: 1.2,
+    flex: 1,
+  },
+  queueCount: {
+    color: '#1DB954',
+    fontSize: 12,
+    fontWeight: 'bold',
+    backgroundColor: '#1DB95433',
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    overflow: 'hidden',
+  },
+  queueLink: {
+    color: '#1DB954',
+    fontSize: 11,
+    fontWeight: 'bold',
+    marginTop: 4,
+  },
+  listContent: {
     paddingHorizontal: 20,
     paddingTop: 10,
+    paddingBottom: 32,
+  },
+  headerTitles: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  greeting: {
+    color: '#B3B3B3',
+    fontSize: 14,
+    marginTop: 2,
+  },
+  searchInputWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 52,
+    backgroundColor: '#222222',
+    borderRadius: 26,
+    paddingLeft: 14,
+    paddingRight: 6,
+  },
+  searchIcon: {
+    fontSize: 14,
+    marginRight: 6,
+    opacity: 0.7,
+  },
+  clearButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#333333',
+  },
+  clearButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  skeletonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1a1a1a',
+    padding: 14,
+    borderRadius: 8,
+    marginBottom: 10,
+  },
+  skeletonIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 4,
+    backgroundColor: '#262626',
+  },
+  skeletonLines: {
+    flex: 1,
+    marginLeft: 16,
+  },
+  skeletonLineLong: {
+    height: 14,
+    width: '70%',
+    borderRadius: 4,
+    backgroundColor: '#262626',
+  },
+  skeletonLineShort: {
+    height: 11,
+    width: '40%',
+    borderRadius: 4,
+    backgroundColor: '#262626',
+    marginTop: 8,
+  },
+  offlineCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2a2216',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 10,
+  },
+  offlineText: {
+    flex: 1,
+    color: '#E8B923',
+    fontSize: 12,
+    paddingRight: 8,
+  },
+  retryButton: {
+    backgroundColor: '#E8B923',
+    borderRadius: 6,
+    minHeight: 40,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  retryButtonText: {
+    color: '#121212',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   fullPlayerContainer: {
     flex: 1,
@@ -679,16 +1045,24 @@ const styles = StyleSheet.create({
   headerButtonSpacer: {
     width: 40,
   },
+  fullPlayerEyebrowReal: {
+    color: '#1DB954',
+  },
+  playerAudioReal: {
+    color: '#1DB954',
+  },
+  fullPlayerScroll: {
+    paddingBottom: 32,
+  },
   fullPlayerArtworkArea: {
-    flex: 1,
     justifyContent: 'center',
-    paddingVertical: 24,
+    paddingVertical: 20,
   },
   fullPlayerArtwork: {
-    width: '100%',
+    width: '78%',
     aspectRatio: 1,
-    maxWidth: 360,
-    maxHeight: 360,
+    maxWidth: 320,
+    maxHeight: 320,
     alignSelf: 'center',
     borderRadius: 12,
     backgroundColor: '#282828',
@@ -776,10 +1150,8 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     height: 52,
-    backgroundColor: '#222222',
-    borderRadius: 8,
     color: '#FFFFFF',
-    paddingHorizontal: 18,
+    paddingHorizontal: 4,
     fontSize: 15,
   },
   searchButton: {
